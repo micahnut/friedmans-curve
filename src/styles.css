@@ -23,7 +23,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -33,7 +34,8 @@ button {
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+textarea:focus-visible {
   outline: 3px solid rgba(27, 106, 217, 0.22);
   outline-offset: 2px;
 }
@@ -144,7 +146,8 @@ label {
   text-transform: uppercase;
 }
 
-input {
+input,
+textarea {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--line);
@@ -155,6 +158,14 @@ input {
   font-size: 0.94rem;
   font-weight: 600;
   text-transform: none;
+}
+
+textarea {
+  min-height: 104px;
+  max-height: 220px;
+  line-height: 1.35;
+  overflow-y: auto;
+  resize: vertical;
 }
 
 input[type="number"] {
@@ -214,6 +225,7 @@ input[type="number"] {
 
 .chart-scroller {
   overflow: auto;
+  max-height: min(860px, calc(100vh - 180px));
   background: #fbfcfd;
 }
 
@@ -222,7 +234,7 @@ input[type="number"] {
   width: 100%;
   min-width: 980px;
   height: auto;
-  aspect-ratio: 1200 / 760;
+  aspect-ratio: 1200 / 850;
 }
 
 .table-wrap {
@@ -412,6 +424,7 @@ td input {
   }
 
   .chart-scroller {
+    max-height: none;
     overflow: visible;
   }
 

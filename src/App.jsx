@@ -132,12 +132,12 @@ function sortedObservations(observations, startTime) {
 
 function buildSvgData(patient, observations) {
   const width = 1200;
-  const height = 760;
+  const height = 850;
   const grid = {
     left: 92,
-    top: 142,
+    top: 226,
     right: 1120,
-    bottom: 650
+    bottom: 734
   };
   const gridWidth = grid.right - grid.left;
   const gridHeight = grid.bottom - grid.top;
@@ -206,9 +206,53 @@ function formatPath(points) {
     .join(" ");
 }
 
+function wrapText(value, maxChars) {
+  const words = value.trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
+  const lines = [];
+  let line = "";
+
+  words.forEach((word) => {
+    if (word.length > maxChars) {
+      if (line) {
+        lines.push(line);
+        line = "";
+      }
+
+      for (let index = 0; index < word.length; index += maxChars) {
+        lines.push(word.slice(index, index + maxChars));
+      }
+
+      return;
+    }
+
+    const nextLine = line ? `${line} ${word}` : word;
+
+    if (nextLine.length > maxChars) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = nextLine;
+    }
+  });
+
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+function wrapHeaderValue(value, maxChars, maxLines = 5) {
+  const lines = wrapText(value || "", maxChars);
+
+  if (lines.length <= maxLines) return lines;
+
+  const visibleLines = lines.slice(0, maxLines);
+  const lastLine = visibleLines.at(-1) || "";
+  visibleLines[visibleLines.length - 1] = `${lastLine.slice(0, Math.max(0, maxChars - 3))}...`;
+  return visibleLines;
+}
+
 function Chart({ patient, observations, chartRef }) {
   const data = useMemo(() => buildSvgData(patient, observations), [patient, observations]);
-  const { width, height, grid } = data;
+  const { width, grid } = data;
   const info = [
     ["Name", patient.patientName, 300],
     ["Age", patient.patientAge, 145],
@@ -216,7 +260,27 @@ function Chart({ patient, observations, chartRef }) {
     ["AOG", patient.patientAog, 210],
     ["Date", patient.patientDate, 145]
   ];
+  const headerLineHeight = 16;
+  const headerItems = info.map(([label, value, slotWidth]) => {
+    const maxChars = Math.max(5, Math.floor((slotWidth - 88) / 7.6));
+    return {
+      label,
+      lines: wrapHeaderValue(value, maxChars),
+      slotWidth
+    };
+  });
+  const maxHeaderLines = Math.max(...headerItems.map((item) => item.lines.length));
   let cursorX = grid.left;
+  const diagnosisText = patient.finalDiagnosis ? `Final Diagnosis: ${patient.finalDiagnosis}` : "Final Diagnosis:";
+  const diagnosisLines = wrapText(diagnosisText, patient.residentName ? 102 : 132);
+  const hasFooter = Boolean(patient.finalDiagnosis || patient.residentName);
+  const gridCenterY = (grid.top + grid.bottom) / 2;
+  const legendY = 124 + (maxHeaderLines - 1) * headerLineHeight;
+  const timeLabelY = grid.bottom + 70;
+  const diagnosisY = grid.bottom + 90;
+  const diagnosisLineHeight = 17;
+  const residentY = diagnosisY + Math.max(diagnosisLines.length, 1) * diagnosisLineHeight + 2;
+  const height = hasFooter ? Math.max(data.height, residentY + 24) : data.height;
 
   return (
     <svg
@@ -235,7 +299,7 @@ function Chart({ patient, observations, chartRef }) {
         Generated chart
       </text>
 
-      {info.map(([label, value, slotWidth]) => {
+      {headerItems.map(({ label, lines, slotWidth }) => {
         const x = cursorX;
         cursorX += slotWidth;
 
@@ -245,7 +309,11 @@ function Chart({ patient, observations, chartRef }) {
               {label}:
             </text>
             <text x={x + 74} y="105" fontSize="15" fontWeight="700" fill="#1c1f24">
-              {value || ""}
+              {lines.map((line, index) => (
+                <tspan key={`${line}-${index}`} x={x + 74} dy={index === 0 ? 0 : headerLineHeight}>
+                  {line}
+                </tspan>
+              ))}
             </text>
             <line x1={x + 72} y1="110" x2={x + slotWidth - 14} y2="110" stroke="#1c1f24" strokeWidth="1.5" />
           </g>
@@ -303,19 +371,19 @@ function Chart({ patient, observations, chartRef }) {
         );
       })}
 
-      <text x="36" y="286" fontSize="15" fontWeight="900" fill="#111820" transform="rotate(-90 36 286)">
+      <text x="36" y={gridCenterY} fontSize="15" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(-90 36 ${gridCenterY})`}>
         CERVICAL DILATATION (CM)
       </text>
-      <text x="1164" y="344" fontSize="15" fontWeight="900" fill="#111820" transform="rotate(90 1164 344)">
+      <text x="1164" y={gridCenterY} fontSize="15" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(90 1164 ${gridCenterY})`}>
         STATION
       </text>
-      <text x={(grid.left + grid.right) / 2} y="720" textAnchor="middle" fontSize="15" fontWeight="900" fill="#111820">
+      <text x={(grid.left + grid.right) / 2} y={timeLabelY} textAnchor="middle" fontSize="15" fontWeight="900" fill="#111820">
         TIME (HOURS)
       </text>
-      <text x={grid.left} y="126" fontSize="12" fontWeight="900" fill="#0f63ce">
+      <text x={grid.left} y={legendY} fontSize="12" fontWeight="900" fill="#0f63ce">
         Blue: cervical dilation
       </text>
-      <text x={grid.left + 168} y="126" fontSize="12" fontWeight="900" fill="#c62828">
+      <text x={grid.left + 168} y={legendY} fontSize="12" fontWeight="900" fill="#c62828">
         Red: station
       </text>
 
@@ -323,12 +391,16 @@ function Chart({ patient, observations, chartRef }) {
       <Series points={data.dilationPoints} color="#0f63ce" marker="circle" />
       <Series points={data.stationPoints} color="#c62828" marker="cross" />
 
-      {(patient.finalDiagnosis || patient.residentName) && (
+      {hasFooter && (
         <>
-          <text x={grid.left} y="736" fontSize="13" fontWeight="900" fill="#111820">
-            Final Diagnosis: {patient.finalDiagnosis || ""}
+          <text x={grid.left} y={diagnosisY} fontSize="13" fontWeight="900" fill="#111820">
+            {diagnosisLines.map((line, index) => (
+              <tspan key={`${line}-${index}`} x={grid.left} dy={index === 0 ? 0 : diagnosisLineHeight}>
+                {line}
+              </tspan>
+            ))}
           </text>
-          <text x={grid.right} y="736" textAnchor="end" fontSize="13" fontWeight="900" fill="#111820">
+          <text x={grid.right} y={residentY} textAnchor="end" fontSize="13" fontWeight="900" fill="#111820">
             {patient.residentName ? `Resident: ${patient.residentName}` : ""}
           </text>
         </>
@@ -340,21 +412,24 @@ function Chart({ patient, observations, chartRef }) {
 function NoteLabels({ notes, grid }) {
   return notes.slice(0, 16).map((note, index) => {
     const y = grid.top - 12 - (index % 2) * 13;
-    const text = note.text.length > 28 ? `${note.text.slice(0, 27)}...` : note.text;
+    const noteLines = wrapText(note.text, 14);
+    const visibleLines =
+      noteLines.length > 6
+        ? [...noteLines.slice(0, 5), `${noteLines.slice(5).join(" ").slice(0, 13)}...`]
+        : noteLines;
 
     return (
       <g key={`${note.x}-${note.text}`}>
         <line x1={note.x} y1={grid.top} x2={note.x} y2={y + 3} stroke="#9aa3af" strokeWidth="1" />
-        <text
-          x={note.x + 4}
-          y={y}
-          fontSize="11"
-          fontWeight="800"
-          fill="#3e4650"
-          transform={`rotate(-65 ${note.x + 4} ${y})`}
-        >
-          {text}
-        </text>
+        {visibleLines.map((line, lineIndex) => {
+          const x = note.x + 4 + lineIndex * 13;
+
+          return (
+            <text key={`${line}-${lineIndex}`} x={x} y={y} fontSize="11" fontWeight="800" fill="#3e4650" textAnchor="start" transform={`rotate(-90 ${x} ${y})`}>
+              {line}
+            </text>
+          );
+        })}
       </g>
     );
   });
@@ -525,7 +600,7 @@ export default function App() {
     image.onload = () => {
       const canvas = document.createElement("canvas");
       canvas.width = 2400;
-      canvas.height = 1520;
+      canvas.height = 1700;
 
       const context = canvas.getContext("2d");
       context.fillStyle = "#ffffff";
@@ -604,7 +679,7 @@ export default function App() {
             </label>
             <label className="wide">
               Final Diagnosis
-              <input value={state.patient.finalDiagnosis} autoComplete="off" type="text" onChange={(event) => updatePatient("finalDiagnosis", event.target.value)} />
+              <textarea value={state.patient.finalDiagnosis} autoComplete="off" rows="4" onChange={(event) => updatePatient("finalDiagnosis", event.target.value)} />
             </label>
             <label>
               Resident
