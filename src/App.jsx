@@ -28,6 +28,7 @@ function createObservation(values = {}) {
   return {
     id: values.id || makeId(),
     time: values.time || "",
+    dayOffset: values.dayOffset ?? "",
     dilation: values.dilation ?? "",
     station: values.station ?? "",
     note: values.note || ""
@@ -81,14 +82,25 @@ function minutesFromTime(value) {
   return hours * 60 + minutes;
 }
 
-function hourFromStart(time, startTime) {
+function hourFromStart(time, startTime, dayOffset = "") {
   const start = minutesFromTime(startTime);
   let current = minutesFromTime(time);
 
   if (start === null || current === null) return null;
+  const day = numberOrNull(dayOffset);
+
+  if (day !== null) {
+    return (current - start) / 60 + Math.max(0, day) * 24;
+  }
+
   if (current < start) current += 24 * 60;
 
   return (current - start) / 60;
+}
+
+function dayOffsetFromStartHour(hour, startTime) {
+  const start = minutesFromTime(startTime) ?? 0;
+  return Math.floor((start + hour * 60) / (24 * 60));
 }
 
 function timeFromStart(hour, startTime) {
@@ -111,11 +123,11 @@ function clamp(value, min, max) {
 }
 
 function pointStatus(observation, startTime) {
-  const hour = hourFromStart(observation.time, startTime);
+  const hour = hourFromStart(observation.time, startTime, observation.dayOffset);
   const dilation = numberOrNull(observation.dilation);
   const station = numberOrNull(observation.station);
 
-  const validTime = hour !== null && hour >= 0 && hour <= 18;
+  const validTime = hour !== null && hour >= 0;
   const validDilation = dilation === null || (dilation >= 0 && dilation <= 10);
   const validStation = station === null || (station >= -5 && station <= 5);
 
@@ -124,24 +136,37 @@ function pointStatus(observation, startTime) {
 
 function sortedObservations(observations, startTime) {
   return [...observations].sort((a, b) => {
-    const hourA = hourFromStart(a.time, startTime);
-    const hourB = hourFromStart(b.time, startTime);
+    const hourA = hourFromStart(a.time, startTime, a.dayOffset);
+    const hourB = hourFromStart(b.time, startTime, b.dayOffset);
     return (hourA ?? 99) - (hourB ?? 99);
   });
 }
 
 function buildSvgData(patient, observations) {
-  const width = 1200;
+  const baseWidth = 1200;
   const height = 850;
+  const left = 92;
+  const top = 226;
+  const bottom = 734;
+  const hourWidth = 57;
+  const maxObservationHour = Math.max(
+    18,
+    ...observations.map((observation) => {
+      const hour = hourFromStart(observation.time, patient.startTime, observation.dayOffset);
+      return hour !== null && hour >= 0 ? Math.ceil(hour) : 0;
+    })
+  );
+  const maxHour = Math.max(18, maxObservationHour);
+  const width = Math.max(baseWidth, left + maxHour * hourWidth + 80);
   const grid = {
-    left: 92,
-    top: 226,
-    right: 1120,
-    bottom: 734
+    left,
+    top,
+    right: width - 80,
+    bottom
   };
   const gridWidth = grid.right - grid.left;
   const gridHeight = grid.bottom - grid.top;
-  const xForHour = (hour) => grid.left + (clamp(hour, 0, 18) / 18) * gridWidth;
+  const xForHour = (hour) => grid.left + (clamp(hour, 0, maxHour) / maxHour) * gridWidth;
   const yForDilation = (dilation) => grid.bottom - (clamp(dilation, 0, 10) / 10) * gridHeight;
   const yForStation = (station) => grid.top + ((clamp(station, -5, 5) + 5) / 10) * gridHeight;
   const dilationPoints = [];
@@ -192,6 +217,7 @@ function buildSvgData(patient, observations) {
     xForHour,
     yForDilation,
     timeFromHour: (hour) => timeFromStart(hour, patient.startTime),
+    maxHour,
     dilationPoints,
     stationPoints,
     notes,
@@ -275,6 +301,7 @@ function Chart({ patient, observations, chartRef }) {
   const diagnosisLines = wrapText(diagnosisText, patient.residentName ? 102 : 132);
   const hasFooter = Boolean(patient.finalDiagnosis || patient.residentName);
   const gridCenterY = (grid.top + grid.bottom) / 2;
+  const stationLabelX = grid.right + 54;
   const legendY = 124 + (maxHeaderLines - 1) * headerLineHeight;
   const timeLabelY = grid.bottom + 70;
   const diagnosisY = grid.bottom + 90;
@@ -290,6 +317,7 @@ function Chart({ patient, observations, chartRef }) {
       aria-label="Generated Friedman's curve"
       viewBox={`0 0 ${width} ${height}`}
       xmlns="http://www.w3.org/2000/svg"
+      style={{ minWidth: `${width}px`, aspectRatio: `${width} / ${height}` }}
     >
       <rect width={width} height={height} fill="#ffffff" />
       <text x={width / 2} y="42" textAnchor="middle" fontSize="27" fontWeight="900" fill="#111820">
@@ -320,9 +348,9 @@ function Chart({ patient, observations, chartRef }) {
         );
       })}
 
-      {Array.from({ length: 19 }, (_, hour) => {
+      {Array.from({ length: data.maxHour + 1 }, (_, hour) => {
         const x = data.xForHour(hour);
-        const isEdge = hour === 0 || hour === 18;
+        const isEdge = hour === 0 || hour === data.maxHour;
 
         return (
           <g key={`hour-${hour}`}>
@@ -374,7 +402,7 @@ function Chart({ patient, observations, chartRef }) {
       <text x="36" y={gridCenterY} fontSize="15" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(-90 36 ${gridCenterY})`}>
         CERVICAL DILATATION (CM)
       </text>
-      <text x="1164" y={gridCenterY} fontSize="15" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(90 1164 ${gridCenterY})`}>
+      <text x={stationLabelX} y={gridCenterY} fontSize="15" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(90 ${stationLabelX} ${gridCenterY})`}>
         STATION
       </text>
       <text x={(grid.left + grid.right) / 2} y={timeLabelY} textAnchor="middle" fontSize="15" fontWeight="900" fill="#111820">
@@ -551,12 +579,14 @@ export default function App() {
     setState((current) => {
       const sorted = sortedObservations(current.observations, current.patient.startTime);
       const last = sorted.at(-1);
-      const lastHour = last ? hourFromStart(last.time, current.patient.startTime) : null;
-      const nextTime = lastHour === null ? current.patient.startTime : timeFromStart(lastHour + 1, current.patient.startTime);
+      const lastHour = last ? hourFromStart(last.time, current.patient.startTime, last.dayOffset) : null;
+      const nextHour = lastHour === null ? 0 : lastHour + 1;
+      const nextTime = timeFromStart(nextHour, current.patient.startTime);
+      const nextDayOffset = dayOffsetFromStartHour(nextHour, current.patient.startTime);
 
       return {
         ...current,
-        observations: [...current.observations, createObservation({ time: nextTime })]
+        observations: [...current.observations, createObservation({ time: nextTime, dayOffset: nextDayOffset ? String(nextDayOffset) : "" })]
       };
     });
   };
@@ -598,9 +628,10 @@ export default function App() {
     const url = URL.createObjectURL(svgBlob);
 
     image.onload = () => {
+      const viewBox = chartRef.current.viewBox.baseVal;
       const canvas = document.createElement("canvas");
-      canvas.width = 2400;
-      canvas.height = 1700;
+      canvas.width = viewBox.width * 2;
+      canvas.height = viewBox.height * 2;
 
       const context = canvas.getContext("2d");
       context.fillStyle = "#ffffff";
@@ -724,6 +755,7 @@ export default function App() {
               <thead>
                 <tr>
                   <th scope="col">Time</th>
+                  <th scope="col">Day</th>
                   <th scope="col">Hour</th>
                   <th scope="col">Cervix</th>
                   <th scope="col">Station</th>
@@ -740,6 +772,9 @@ export default function App() {
                     <tr key={observation.id} className={hasWarning ? "row-warning" : undefined}>
                       <td>
                         <input value={observation.time} type="time" onChange={(event) => updateObservation(observation.id, "time", event.target.value)} />
+                      </td>
+                      <td>
+                        <input value={observation.dayOffset} inputMode="numeric" type="number" min="0" step="1" onChange={(event) => updateObservation(observation.id, "dayOffset", event.target.value)} />
                       </td>
                       <td className="hour-cell">{status.hour === null ? "--" : status.hour.toFixed(1)}</td>
                       <td>
