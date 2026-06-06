@@ -44,8 +44,8 @@ function makeDefaultState() {
       patientAog: "",
       patientDate: todayValue(),
       startTime: "07:30",
-      finalDiagnosis: "1. G1P1(1001), Pregnancy Uterine, delivered by Normal Spontaneous Vaginal Delivery with mediolateral episiotomy and repair under local anesthesia, male, cephalic, term, appropriate for gestational age ",
-      residentName: "Dr. Yu"
+      finalDiagnosis: "",
+      residentName: ""
     },
     observations: [
       createObservation({ time: "07:30", dayOffset: "0", dilation: "4", station: "-3", note: "Admission" }),
@@ -609,6 +609,8 @@ export default function App() {
     sample.patient.patientAge = "23";
     sample.patient.patientObScore = "G4P3";
     sample.patient.patientAog = "40 2/7 weeks";
+    sample.patient.finalDiagnosis = "1. G1P1(1001), Pregnancy Uterine, delivered by Normal Spontaneous Vaginal Delivery with mediolateral episiotomy and repair under local anesthesia, male, cephalic, term, appropriate for gestational age ";
+    sample.patient.residentName = "Dr. Yu";
     setState(sample);
   };
 
