@@ -44,15 +44,17 @@ function makeDefaultState() {
       patientAog: "",
       patientDate: todayValue(),
       startTime: "07:30",
-      finalDiagnosis: "",
-      residentName: ""
+      finalDiagnosis: "1. G1P1(1001), Pregnancy Uterine, delivered by Normal Spontaneous Vaginal Delivery with mediolateral episiotomy and repair under local anesthesia, male, cephalic, term, appropriate for gestational age ",
+      residentName: "Dr. Yu"
     },
     observations: [
-      createObservation({ time: "07:30", dilation: "4", station: "-3", note: "Admission" }),
-      createObservation({ time: "10:30", dilation: "5", station: "-3", note: "" }),
-      createObservation({ time: "13:30", dilation: "5", station: "-3", note: "" }),
-      createObservation({ time: "15:00", dilation: "7", station: "-2", note: "" }),
-      createObservation({ time: "15:30", dilation: "8", station: "-1", note: "" })
+      createObservation({ time: "07:30", dayOffset: "0", dilation: "4", station: "-3", note: "Admission" }),
+      createObservation({ time: "10:30", dayOffset: "0", dilation: "5", station: "-3", note: "oxytocin @ 8gtt/min" }),
+      createObservation({ time: "13:30", dayOffset: "0", dilation: "5", station: "-3", note: "" }),
+      createObservation({ time: "15:00", dayOffset: "0", dilation: "7", station: "-2", note: "evening primerose 3 caps" }),
+      createObservation({ time: "15:30", dayOffset: "0", dilation: "8", station: "-1", note: "" }),
+      createObservation({ time: "15:50", dayOffset: "0", dilation: "10", station: "0", note: "mount" }),
+      createObservation({ time: "16:10", dayOffset: "0", dilation: "10", station: "5", note: "baby out" })
     ]
   };
 }
@@ -433,6 +435,9 @@ function Chart({ patient, observations, chartRef }) {
           </text>
         </>
       )}
+      <text x="18" y={height - 10} textAnchor="start" fontSize="8" fontWeight="700" fill="#c7cdd5">
+        (c) chu im - batch adamantos
+      </text>
     </svg>
   );
 }
@@ -600,7 +605,7 @@ export default function App() {
 
   const loadSample = () => {
     const sample = makeDefaultState();
-    sample.patient.patientName = "Sample Patient";
+    sample.patient.patientName = "Juana Dela Cruz";
     sample.patient.patientAge = "23";
     sample.patient.patientObScore = "G4P3";
     sample.patient.patientAog = "40 2/7 weeks";
