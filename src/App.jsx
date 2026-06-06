@@ -607,7 +607,7 @@ export default function App() {
     const sample = makeDefaultState();
     sample.patient.patientName = "Juana Dela Cruz";
     sample.patient.patientAge = "23";
-    sample.patient.patientObScore = "G4P3";
+    sample.patient.patientObScore = "G1P0";
     sample.patient.patientAog = "40 2/7 weeks";
     sample.patient.finalDiagnosis = "1. G1P1(1001), Pregnancy Uterine, delivered by Normal Spontaneous Vaginal Delivery with mediolateral episiotomy and repair under local anesthesia, male, cephalic, term, appropriate for gestational age ";
     sample.patient.residentName = "Dr. Yu";
