@@ -172,6 +172,14 @@ input[type="number"] {
   appearance: textfield;
 }
 
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
 .wide {
   grid-column: span 2;
 }
@@ -245,7 +253,7 @@ input[type="number"] {
 
 table {
   width: 100%;
-  min-width: 620px;
+  min-width: 700px;
   border-collapse: collapse;
 }
 
@@ -272,6 +280,14 @@ tbody tr:last-child td {
 td input {
   padding: 7px 8px;
   font-size: 0.9rem;
+}
+
+.checkbox-cell {
+  text-align: center;
+}
+
+.checkbox-cell input {
+  display: inline-block;
 }
 
 .hour-cell {

@@ -31,6 +31,7 @@ function createObservation(values = {}) {
     dayOffset: values.dayOffset ?? "",
     dilation: values.dilation ?? "",
     station: values.station ?? "",
+    guideLine: values.guideLine ?? false,
     note: values.note || ""
   };
 }
@@ -173,6 +174,7 @@ function buildSvgData(patient, observations) {
   const yForStation = (station) => grid.top + ((clamp(station, -5, 5) + 5) / 10) * gridHeight;
   const dilationPoints = [];
   const stationPoints = [];
+  const guideLines = [];
   const notes = [];
   let validCount = 0;
   let warningCount = 0;
@@ -187,6 +189,13 @@ function buildSvgData(patient, observations) {
 
     if (status.hour === null) return;
     validCount += 1;
+
+    if (observation.guideLine) {
+      guideLines.push({
+        x: xForHour(status.hour),
+        hour: status.hour
+      });
+    }
 
     if (status.dilation !== null) {
       dilationPoints.push({
@@ -222,6 +231,7 @@ function buildSvgData(patient, observations) {
     maxHour,
     dilationPoints,
     stationPoints,
+    guideLines,
     notes,
     validCount,
     warningCount
@@ -417,6 +427,20 @@ function Chart({ patient, observations, chartRef }) {
         Red: station
       </text>
 
+      {data.guideLines.map((line) => (
+        <line
+          key={`guide-${line.hour}`}
+          x1={line.x}
+          y1={grid.top}
+          x2={line.x}
+          y2={grid.bottom}
+          stroke="#1f2933"
+          strokeWidth="2"
+          strokeDasharray="7 8"
+          strokeLinecap="round"
+          opacity="0.72"
+        />
+      ))}
       <NoteLabels notes={data.notes} grid={grid} />
       <Series points={data.dilationPoints} color="#0f63ce" marker="circle" />
       <Series points={data.stationPoints} color="#c62828" marker="cross" />
@@ -443,19 +467,51 @@ function Chart({ patient, observations, chartRef }) {
 }
 
 function NoteLabels({ notes, grid }) {
-  return notes.slice(0, 16).map((note, index) => {
-    const y = grid.top - 12 - (index % 2) * 13;
-    const noteLines = wrapText(note.text, 14);
-    const visibleLines =
-      noteLines.length > 6
-        ? [...noteLines.slice(0, 5), `${noteLines.slice(5).join(" ").slice(0, 13)}...`]
-        : noteLines;
+  const columnWidth = 13;
+  const lanes = Array.from({ length: 4 }, (_, index) => ({
+    y: grid.top - 12 - index * 22,
+    endX: grid.left
+  }));
+  const layouts = notes
+    .slice(0, 16)
+    .map((note) => {
+      const noteLines = wrapText(note.text, 14);
+      const visibleLines =
+        noteLines.length > 6
+          ? [...noteLines.slice(0, 5), `${noteLines.slice(5).join(" ").slice(0, 13)}...`]
+          : noteLines;
+      const width = visibleLines.length * columnWidth;
+      const naturalX = note.x + 4;
+      const candidates = lanes.map((lane, laneIndex) => {
+        const x = Math.max(naturalX, lane.endX + 8);
+        return {
+          laneIndex,
+          x,
+          fits: x + width <= grid.right - 4
+        };
+      });
+      const placement = candidates.find((candidate) => candidate.fits) || candidates.reduce((best, candidate) => (candidate.x < best.x ? candidate : best));
+      const lane = lanes[placement.laneIndex];
+      const labelX = Math.min(placement.x, Math.max(grid.left + 4, grid.right - width - 4));
+
+      lane.endX = labelX + width;
+
+      return {
+        ...note,
+        labelX,
+        y: lane.y,
+        visibleLines
+      };
+    });
+
+  return layouts.map((note) => {
+    const y = note.y;
 
     return (
       <g key={`${note.x}-${note.text}`}>
-        <line x1={note.x} y1={grid.top} x2={note.x} y2={y + 3} stroke="#9aa3af" strokeWidth="1" />
-        {visibleLines.map((line, lineIndex) => {
-          const x = note.x + 4 + lineIndex * 13;
+        <polyline points={`${note.x},${grid.top} ${note.x},${y + 3} ${note.labelX},${y + 3}`} fill="none" stroke="#9aa3af" strokeWidth="1" />
+        {note.visibleLines.map((line, lineIndex) => {
+          const x = note.labelX + lineIndex * columnWidth;
 
           return (
             <text key={`${line}-${lineIndex}`} x={x} y={y} fontSize="11" fontWeight="800" fill="#3e4650" textAnchor="start" transform={`rotate(-90 ${x} ${y})`}>
@@ -766,6 +822,7 @@ export default function App() {
                   <th scope="col">Hour</th>
                   <th scope="col">Cervix</th>
                   <th scope="col">Station</th>
+                  <th scope="col">Guide</th>
                   <th scope="col">Note</th>
                   <th scope="col"></th>
                 </tr>
@@ -789,6 +846,9 @@ export default function App() {
                       </td>
                       <td>
                         <input value={observation.station} inputMode="decimal" type="number" min="-5" max="5" step="1" onChange={(event) => updateObservation(observation.id, "station", event.target.value)} />
+                      </td>
+                      <td className="checkbox-cell">
+                        <input checked={Boolean(observation.guideLine)} type="checkbox" title="Show dotted timestamp guide" aria-label="Show dotted timestamp guide" onChange={(event) => updateObservation(observation.id, "guideLine", event.target.checked)} />
                       </td>
                       <td>
                         <input value={observation.note} type="text" onChange={(event) => updateObservation(observation.id, "note", event.target.value)} />
