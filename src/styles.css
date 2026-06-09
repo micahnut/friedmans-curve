@@ -64,7 +64,8 @@ textarea:focus-visible {
 }
 
 h1,
-h2 {
+h2,
+h3 {
   margin: 0;
   letter-spacing: 0;
 }
@@ -76,6 +77,10 @@ h1 {
 
 h2 {
   font-size: 1rem;
+}
+
+h3 {
+  font-size: 0.96rem;
 }
 
 .header-actions,
@@ -362,6 +367,55 @@ td input {
   margin-top: 14px;
 }
 
+.guide-page {
+  max-width: 1120px;
+}
+
+.guide-panel {
+  padding: 20px;
+}
+
+.guide-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.guide-heading h2 {
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+}
+
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.guide-grid article {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fbfcfd;
+}
+
+.guide-grid p,
+.guide-grid ul {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.48;
+}
+
+.guide-grid ul {
+  padding-left: 18px;
+}
+
+.guide-grid li + li {
+  margin-top: 5px;
+}
+
 @media (max-width: 1120px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -400,6 +454,14 @@ td input {
   .chart-toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .guide-heading {
+    flex-direction: column;
+  }
+
+  .guide-grid {
+    grid-template-columns: 1fr;
   }
 }
 

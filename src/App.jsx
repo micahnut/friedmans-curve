@@ -52,10 +52,10 @@ function makeDefaultState() {
       createObservation({ time: "07:30", dayOffset: "0", dilation: "4", station: "-3", note: "Admission" }),
       createObservation({ time: "10:30", dayOffset: "0", dilation: "5", station: "-3", note: "oxytocin @ 8gtt/min" }),
       createObservation({ time: "13:30", dayOffset: "0", dilation: "5", station: "-3", note: "" }),
-      createObservation({ time: "15:00", dayOffset: "0", dilation: "7", station: "-2", note: "evening primerose 3 caps" }),
-      createObservation({ time: "15:30", dayOffset: "0", dilation: "8", station: "-1", note: "" }),
+      createObservation({ time: "15:00", dayOffset: "0", dilation: "7", station: "-2", guideLine: true, note: "evening primerose 3 caps"}),
+      createObservation({ time: "15:30", dayOffset: "0", dilation: "8", station: "-1", }),
       createObservation({ time: "15:50", dayOffset: "0", dilation: "10", station: "0", note: "mount" }),
-      createObservation({ time: "16:10", dayOffset: "0", dilation: "10", station: "5", note: "baby out" })
+      createObservation({ time: "16:10", dayOffset: "0", dilation: "10", station: "5", guideLine: true, note: "baby out" })
     ]
   };
 }
@@ -552,6 +552,18 @@ function Series({ points, color, marker }) {
 }
 
 function Icon({ name }) {
+  if (name === "guide") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z" />
+        <path d="M8 7h8" />
+        <path d="M8 11h8" />
+        <path d="M8 15h5" />
+      </svg>
+    );
+  }
+
   if (name === "print") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -582,6 +594,78 @@ function Icon({ name }) {
   );
 }
 
+function GuidePage({ onBack }) {
+  return (
+    <main className="guide-page">
+      <section className="panel guide-panel" aria-labelledby="guide-title">
+        <div className="guide-heading">
+          <div>
+            <p className="eyebrow">User Guide</p>
+            <h2 id="guide-title">How to use the Friedman&apos;s Curve Builder</h2>
+          </div>
+          <button className="primary-button" type="button" onClick={onBack}>
+            Back to chart
+          </button>
+        </div>
+
+        <div className="guide-grid">
+          <article>
+            <h3>Patient Details</h3>
+            <p>Fill in the patient panel first. Long names, AOG, OB score, and final diagnosis text wrap automatically on the generated chart.</p>
+            <ul>
+              <li>Name, Age, OB Score, AOG, Date, Start Time</li>
+              <li>Final Diagnosis for the lower chart text</li>
+              <li>Resident for the signature line</li>
+            </ul>
+          </article>
+
+          <article>
+            <h3>Observations</h3>
+            <p>Each row can plot cervical dilation, station, notes, or a timestamp guide line.</p>
+            <ul>
+              <li>Time is the clock time of the event.</li>
+              <li>Day is 0 for the start date, 1 for the next day, 2 for the day after that.</li>
+              <li>Hour is calculated automatically from Start Time, Time, and Day.</li>
+              <li>Cervix accepts 0 to 10.</li>
+              <li>Station accepts -5 to 5.</li>
+            </ul>
+          </article>
+
+          <article>
+            <h3>Guide Button</h3>
+            <p>Check Guide on an observation row to draw a dotted vertical line at that timestamp, like the paper sample chart.</p>
+            <ul>
+              <li>Use it for admission, oxytocin, medication, procedures, mount, or baby out.</li>
+              <li>It can be used even when the row only has a time and note.</li>
+            </ul>
+          </article>
+
+          <article>
+            <h3>Notes</h3>
+            <p>Notes appear above the graph as vertical labels. Long notes wrap into small columns, and close notes are staggered to reduce overlap.</p>
+          </article>
+
+          <article>
+            <h3>Long Labor</h3>
+            <p>If labor continues past midnight, enter the next clock time and set Day to 1. The graph expands horizontally when observations go beyond 18 hours.</p>
+            <p>Example: Start Time 07:30, Time 08:30, Day 1 plots at hour 25.</p>
+          </article>
+
+          <article>
+            <h3>Export</h3>
+            <p>Use the header buttons to print, download SVG, or download PNG. Print is set up for landscape A4 or short bond paper.</p>
+            <ul>
+              <li>Print opens the browser print dialog.</li>
+              <li>SVG is best for crisp editing or archiving.</li>
+              <li>PNG is best for sharing as an image.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function serializeSvg(chartNode) {
   const clone = chartNode.cloneNode(true);
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -603,6 +687,7 @@ function download(filename, content, type) {
 
 export default function App() {
   const [state, setState] = useState(loadState);
+  const [showGuide, setShowGuide] = useState(false);
   const chartRef = useRef(null);
   const observations = useMemo(
     () => sortedObservations(state.observations, state.patient.startTime),
@@ -725,18 +810,32 @@ export default function App() {
           <h1>Friedman&apos;s Curve</h1>
         </div>
         <div className="header-actions" aria-label="Chart actions">
-          <button className="icon-button" type="button" title="Print chart" aria-label="Print chart" onClick={() => window.print()}>
-            <Icon name="print" />
-          </button>
-          <button className="icon-button" type="button" title="Download SVG" aria-label="Download SVG" onClick={downloadSvg}>
-            <Icon name="svg" />
-          </button>
-          <button className="icon-button" type="button" title="Download PNG" aria-label="Download PNG" onClick={downloadPng}>
-            <Icon name="png" />
-          </button>
+          {showGuide ? (
+            <button className="ghost-button" type="button" onClick={() => setShowGuide(false)}>
+              Back to chart
+            </button>
+          ) : (
+            <>
+              <button className="ghost-button" type="button" onClick={() => setShowGuide(true)}>
+                User Guide
+              </button>
+              <button className="icon-button" type="button" title="Print chart" aria-label="Print chart" onClick={() => window.print()}>
+                <Icon name="print" />
+              </button>
+              <button className="icon-button" type="button" title="Download SVG" aria-label="Download SVG" onClick={downloadSvg}>
+                <Icon name="svg" />
+              </button>
+              <button className="icon-button" type="button" title="Download PNG" aria-label="Download PNG" onClick={downloadPng}>
+                <Icon name="png" />
+              </button>
+            </>
+          )}
         </div>
       </header>
 
+      {showGuide ? (
+        <GuidePage onBack={() => setShowGuide(false)} />
+      ) : (
       <main className="workspace">
         <section className="panel patient-panel" aria-label="Patient information">
           <div className="panel-heading">
@@ -875,6 +974,7 @@ export default function App() {
           </div>
         </aside>
       </main>
+      )}
     </div>
   );
 }
