@@ -48,12 +48,30 @@ function makeDefaultState() {
       finalDiagnosis: "",
       residentName: ""
     },
+    observations: []
+  };
+}
+
+function makeSampleState() {
+  const sample = makeDefaultState();
+
+  return {
+    patient: {
+      ...sample.patient,
+      patientName: "Juana Dela Cruz",
+      patientAge: "23",
+      patientObScore: "G1P0",
+      patientAog: "40 2/7 weeks",
+      finalDiagnosis:
+        "1. G1P1(1001), Pregnancy Uterine, delivered by Normal Spontaneous Vaginal Delivery with mediolateral episiotomy and repair under local anesthesia, male, cephalic, term, appropriate for gestational age ",
+      residentName: "Dr. Yu"
+    },
     observations: [
       createObservation({ time: "07:30", dayOffset: "0", dilation: "4", station: "-3", note: "Admission" }),
       createObservation({ time: "10:30", dayOffset: "0", dilation: "5", station: "-3", note: "oxytocin @ 8gtt/min" }),
       createObservation({ time: "13:30", dayOffset: "0", dilation: "5", station: "-3", note: "" }),
-      createObservation({ time: "15:00", dayOffset: "0", dilation: "7", station: "-2", guideLine: true, note: "evening primerose 3 caps"}),
-      createObservation({ time: "15:30", dayOffset: "0", dilation: "8", station: "-1", }),
+      createObservation({ time: "15:00", dayOffset: "0", dilation: "7", station: "-2", guideLine: true, note: "evening primerose 3 caps" }),
+      createObservation({ time: "15:30", dayOffset: "0", dilation: "8", station: "-1" }),
       createObservation({ time: "15:50", dayOffset: "0", dilation: "10", station: "0", note: "mount" }),
       createObservation({ time: "16:10", dayOffset: "0", dilation: "10", station: "5", guideLine: true, note: "baby out" })
     ]
@@ -745,14 +763,7 @@ export default function App() {
   };
 
   const loadSample = () => {
-    const sample = makeDefaultState();
-    sample.patient.patientName = "Juana Dela Cruz";
-    sample.patient.patientAge = "23";
-    sample.patient.patientObScore = "G1P0";
-    sample.patient.patientAog = "40 2/7 weeks";
-    sample.patient.finalDiagnosis = "1. G1P1(1001), Pregnancy Uterine, delivered by Normal Spontaneous Vaginal Delivery with mediolateral episiotomy and repair under local anesthesia, male, cephalic, term, appropriate for gestational age ";
-    sample.patient.residentName = "Dr. Yu";
-    setState(sample);
+    setState(makeSampleState());
   };
 
   const resetPatient = () => {
