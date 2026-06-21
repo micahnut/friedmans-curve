@@ -219,6 +219,7 @@ function buildSvgData(patient, observations) {
       dilationPoints.push({
         x: xForHour(status.hour),
         y: yForDilation(status.dilation),
+        hour: status.hour,
         value: status.dilation
       });
     }
@@ -227,6 +228,7 @@ function buildSvgData(patient, observations) {
       stationPoints.push({
         x: xForHour(status.hour),
         y: yForStation(status.station),
+        hour: status.hour,
         value: status.station
       });
     }
@@ -460,6 +462,7 @@ function Chart({ patient, observations, chartRef }) {
         />
       ))}
       <NoteLabels notes={data.notes} grid={grid} />
+      <StartConnectors data={data} />
       <Series points={data.dilationPoints} color="#0f63ce" marker="circle" />
       <Series points={data.stationPoints} color="#c62828" marker="cross" />
 
@@ -540,6 +543,42 @@ function NoteLabels({ notes, grid }) {
       </g>
     );
   });
+}
+
+function StartConnectors({ data }) {
+  const dilationStart = data.dilationPoints[0];
+  const stationStart = data.stationPoints[0];
+
+  return (
+    <>
+      {dilationStart && dilationStart.hour > 0 && (
+        <line
+          x1={data.grid.left}
+          y1={data.yForDilation(0)}
+          x2={dilationStart.x}
+          y2={dilationStart.y}
+          stroke="#0f63ce"
+          strokeWidth="2.4"
+          strokeDasharray="5 8"
+          strokeLinecap="round"
+          opacity="0.72"
+        />
+      )}
+      {stationStart && stationStart.hour > 0 && (
+        <line
+          x1={data.grid.left}
+          y1={stationStart.y}
+          x2={stationStart.x}
+          y2={stationStart.y}
+          stroke="#c62828"
+          strokeWidth="2.4"
+          strokeDasharray="5 8"
+          strokeLinecap="round"
+          opacity="0.72"
+        />
+      )}
+    </>
+  );
 }
 
 function Series({ points, color, marker }) {
