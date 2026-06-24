@@ -338,6 +338,7 @@ function wrapHeaderValue(value, maxChars, maxLines = 5) {
 
 function Chart({ patient, observations, chartRef }) {
   const data = useMemo(() => buildSvgData(patient, observations), [patient, observations]);
+  const [hoveredPoint, setHoveredPoint] = useState(null);
   const { width, grid } = data;
   const info = [
     ["Name", patient.patientName, 300],
@@ -368,17 +369,32 @@ function Chart({ patient, observations, chartRef }) {
   const diagnosisLineHeight = 17;
   const residentY = diagnosisY + Math.max(diagnosisLines.length, 1) * diagnosisLineHeight + 2;
   const height = hasFooter ? Math.max(data.height, residentY + 24) : data.height;
+  const showPointDetails = (point, series) => {
+    const bounds = chartRef.current?.getBoundingClientRect();
+
+    if (!bounds) return;
+
+    setHoveredPoint({
+      series,
+      value: point.value,
+      time: data.timeFromHour(point.hour),
+      left: (point.x / width) * bounds.width,
+      top: (point.y / height) * bounds.height,
+      below: point.y / height < 0.2
+    });
+  };
 
   return (
-    <svg
-      id="curveChart"
-      ref={chartRef}
-      role="img"
-      aria-label="Generated Friedman's curve"
-      viewBox={`0 0 ${width} ${height}`}
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ aspectRatio: `${width} / ${height}` }}
-    >
+    <div className="chart-interactive">
+      <svg
+        id="curveChart"
+        ref={chartRef}
+        role="group"
+        aria-label="Generated Friedman's curve. Hover or focus a plotted point to inspect it."
+        viewBox={`0 0 ${width} ${height}`}
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ aspectRatio: `${width} / ${height}` }}
+      >
       <rect width={width} height={height} fill="#ffffff" />
       <text x={width / 2} y="42" textAnchor="middle" fontSize="27" fontWeight="900" fill="#111820">
         FRIEDMAN&apos;S CURVE
@@ -491,8 +507,20 @@ function Chart({ patient, observations, chartRef }) {
       ))}
       <NoteLabels notes={data.notes} grid={grid} />
       <StartConnectors data={data} />
-      <Series points={data.dilationPoints} color="#0f63ce" marker="circle" />
-      <Series points={data.stationPoints} color="#c62828" marker="cross" />
+      <Series
+        points={data.dilationPoints.map((point) => ({ ...point, time: data.timeFromHour(point.hour) }))}
+        color="#0f63ce"
+        marker="circle"
+        onPointEnter={showPointDetails}
+        onPointLeave={() => setHoveredPoint(null)}
+      />
+      <Series
+        points={data.stationPoints.map((point) => ({ ...point, time: data.timeFromHour(point.hour) }))}
+        color="#c62828"
+        marker="cross"
+        onPointEnter={showPointDetails}
+        onPointLeave={() => setHoveredPoint(null)}
+      />
 
       {hasFooter && (
         <>
@@ -511,7 +539,19 @@ function Chart({ patient, observations, chartRef }) {
       <text x="18" y={height - 10} textAnchor="start" fontSize="8" fontWeight="700" fill="#c7cdd5">
         (c) chu im - batch adamantos
       </text>
-    </svg>
+      </svg>
+      {hoveredPoint && (
+        <div
+          className={`chart-tooltip${hoveredPoint.below ? " below" : ""}`}
+          role="status"
+          style={{ left: `${hoveredPoint.left}px`, top: `${hoveredPoint.top}px` }}
+        >
+          <strong>{hoveredPoint.series}</strong>
+          <span>{hoveredPoint.series === "Cervical dilation" ? `${hoveredPoint.value} cm` : `Station ${hoveredPoint.value}`}</span>
+          <span>{hoveredPoint.time}</span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -609,7 +649,7 @@ function StartConnectors({ data }) {
   );
 }
 
-function Series({ points, color, marker }) {
+function Series({ points, color, marker, onPointEnter, onPointLeave }) {
   return (
     <>
       {points.length >= 2 && (
@@ -624,9 +664,33 @@ function Series({ points, color, marker }) {
       )}
       {points.map((point, index) =>
         marker === "circle" ? (
-          <circle key={`${marker}-${index}`} cx={point.x} cy={point.y} r="8" fill="#fff" stroke={color} strokeWidth="3" />
+          <circle
+            key={`${marker}-${index}`}
+            className="chart-point"
+            cx={point.x}
+            cy={point.y}
+            r="8"
+            fill="#fff"
+            stroke={color}
+            strokeWidth="3"
+            tabIndex="0"
+            aria-label={`Cervical dilation: ${point.value} cm at ${point.time}`}
+            onMouseEnter={() => onPointEnter(point, "Cervical dilation")}
+            onFocus={() => onPointEnter(point, "Cervical dilation")}
+            onMouseLeave={onPointLeave}
+            onBlur={onPointLeave}
+          />
         ) : (
-          <g key={`${marker}-${index}`}>
+          <g
+            key={`${marker}-${index}`}
+            className="chart-point"
+            tabIndex="0"
+            aria-label={`Fetal station: ${point.value} at ${point.time}`}
+            onMouseEnter={() => onPointEnter(point, "Fetal station")}
+            onFocus={() => onPointEnter(point, "Fetal station")}
+            onMouseLeave={onPointLeave}
+            onBlur={onPointLeave}
+          >
             <line x1={point.x - 9} y1={point.y - 9} x2={point.x + 9} y2={point.y + 9} stroke={color} strokeWidth="3" strokeLinecap="round" />
             <line x1={point.x + 9} y1={point.y - 9} x2={point.x - 9} y2={point.y + 9} stroke={color} strokeWidth="3" strokeLinecap="round" />
           </g>
@@ -997,7 +1061,7 @@ export default function App() {
               Final Diagnosis
               <textarea value={state.patient.finalDiagnosis} autoComplete="off" placeholder="e.g., G1P1, delivered via normal spontaneous vaginal delivery" rows="4" onChange={(event) => updatePatient("finalDiagnosis", event.target.value)} />
             </label>
-            <label>
+            <label className="resident-field">
               Resident
               <input value={state.patient.residentName} autoComplete="off" placeholder="e.g., Dr. Santos" type="text" onChange={(event) => updatePatient("residentName", event.target.value)} />
             </label>

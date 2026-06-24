@@ -183,6 +183,8 @@ input,
 textarea {
   width: 100%;
   min-width: 0;
+  min-inline-size: 0;
+  max-inline-size: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 9px 10px;
@@ -297,13 +299,58 @@ input[type="checkbox"] {
   background: #fbfcfd;
 }
 
+.chart-interactive {
+  position: relative;
+  width: min(100%, 1180px);
+  margin: 0 auto;
+}
+
 #curveChart {
   display: block;
-  width: min(100%, 1180px);
+  width: 100%;
   min-width: 0;
   height: auto;
-  margin: 0 auto;
   aspect-ratio: 1200 / 850;
+}
+
+.chart-point {
+  cursor: pointer;
+  outline: none;
+}
+
+.chart-point:focus circle,
+.chart-point:hover circle {
+  filter: drop-shadow(0 0 3px rgba(15, 99, 206, 0.5));
+}
+
+.chart-point:focus line,
+.chart-point:hover line {
+  filter: drop-shadow(0 0 3px rgba(198, 40, 40, 0.45));
+}
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  gap: 2px;
+  min-width: 142px;
+  padding: 9px 11px;
+  border-radius: 7px;
+  background: rgba(25, 33, 48, 0.96);
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 13px));
+  box-shadow: 0 10px 26px rgba(22, 27, 34, 0.22);
+}
+
+.chart-tooltip.below {
+  transform: translate(-50%, 13px);
+}
+
+.chart-tooltip strong {
+  font-size: 0.86rem;
 }
 
 .table-wrap {
@@ -666,6 +713,10 @@ td input {
     grid-column: span 2;
   }
 
+  .resident-field {
+    grid-column: span 2;
+  }
+
   .chart-toolbar {
     align-items: flex-start;
     flex-direction: column;
@@ -721,6 +772,7 @@ td input {
   tbody td:nth-child(n) {
     display: grid;
     width: auto;
+    min-width: 0;
     gap: 4px;
     padding: 0;
     border: 0;
@@ -777,11 +829,11 @@ td input {
   }
 
   .patient-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .wide {
-    grid-column: span 1;
+    grid-column: span 2;
   }
 }
 
