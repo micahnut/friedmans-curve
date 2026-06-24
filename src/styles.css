@@ -31,6 +31,16 @@ textarea {
 button {
   border: 0;
   cursor: pointer;
+  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+
+button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 button:focus-visible,
@@ -163,6 +173,25 @@ textarea {
   font-size: 0.94rem;
   font-weight: 600;
   text-transform: none;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+input:not([type="checkbox"]):hover,
+textarea:hover {
+  border-color: #aab4c2;
+  background: #fbfcfe;
+}
+
+input:not([type="checkbox"]):focus,
+textarea:focus {
+  border-color: var(--blue);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(15, 99, 206, 0.14);
+  outline: none;
+}
+
+label:focus-within {
+  color: var(--blue);
 }
 
 textarea {
@@ -309,6 +338,11 @@ td input {
   background: #fff7eb;
 }
 
+.row-warning input:focus {
+  border-color: #b96c0a;
+  box-shadow: 0 0 0 3px rgba(213, 135, 34, 0.16);
+}
+
 .row-delete {
   width: 34px;
   height: 34px;
@@ -316,6 +350,11 @@ td input {
   background: #f1f3f6;
   color: #4b5563;
   font-weight: 900;
+}
+
+.row-delete:hover {
+  background: #e2e7ed;
+  color: #222832;
 }
 
 .icon-button {
@@ -337,6 +376,12 @@ td input {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
+}
+
+.icon-button:hover {
+  border-color: #aab4c2;
+  background: #f8fafc;
+  box-shadow: 0 10px 26px rgba(22, 27, 34, 0.13);
 }
 
 .export-menu {
@@ -367,6 +412,12 @@ td input {
   stroke-width: 2;
 }
 
+.export-button:hover,
+.primary-button:hover {
+  background: #303641;
+  box-shadow: 0 10px 26px rgba(22, 27, 34, 0.18);
+}
+
 .export-options {
   position: absolute;
   z-index: 10;
@@ -395,6 +446,7 @@ td input {
 .export-options button:hover,
 .export-options button:focus-visible {
   background: #eef1f5;
+  transform: none;
 }
 
 .export-options span {
@@ -422,9 +474,17 @@ td input {
   color: #222832;
 }
 
+.ghost-button:hover {
+  background: #e1e6ed;
+}
+
 .danger-button {
   background: var(--red-soft);
   color: var(--red);
+}
+
+.danger-button:hover {
+  background: #ffd8d8;
 }
 
 .data-actions {
