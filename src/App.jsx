@@ -855,7 +855,8 @@ export default function App() {
   const resetPatient = () => {
     setState((current) => ({
       ...current,
-      patient: makeDefaultState().patient
+      patient: makeDefaultState().patient,
+      observations: []
     }));
   };
 
@@ -1055,26 +1056,26 @@ export default function App() {
 
                   return (
                     <tr key={observation.id} className={hasWarning ? "row-warning" : undefined}>
-                      <td>
+                      <td data-label="Time">
                         <input value={observation.time} type="time" onChange={(event) => updateObservation(observation.id, "time", event.target.value)} />
                       </td>
-                      <td>
+                      <td data-label="Day">
                         <input value={observation.dayOffset} inputMode="numeric" placeholder="0" type="number" min="0" step="1" onChange={(event) => updateObservation(observation.id, "dayOffset", event.target.value)} />
                       </td>
-                      <td className="hour-cell">{status.hour === null ? "--" : status.hour.toFixed(1)}</td>
-                      <td>
+                      <td className="hour-cell" data-label="Hour">{status.hour === null ? "--" : status.hour.toFixed(1)}</td>
+                      <td data-label="Cervix">
                         <input value={observation.dilation} inputMode="decimal" placeholder="0–10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateObservation(observation.id, "dilation", event.target.value)} />
                       </td>
-                      <td>
+                      <td data-label="Station">
                         <input value={observation.station} inputMode="decimal" placeholder="-5 to +5" type="number" min="-5" max="5" step="1" onChange={(event) => updateObservation(observation.id, "station", event.target.value)} />
                       </td>
-                      <td className="checkbox-cell">
+                      <td className="checkbox-cell" data-label="Event marker">
                         <input checked={Boolean(observation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateObservation(observation.id, "guideLine", event.target.checked)} />
                       </td>
-                      <td>
+                      <td data-label="Note">
                         <input value={observation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateObservation(observation.id, "note", event.target.value)} />
                       </td>
-                      <td>
+                      <td data-label="Remove observation">
                         <button className="row-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation.id)}>
                           X
                         </button>
