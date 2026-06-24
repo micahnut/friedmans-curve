@@ -339,6 +339,70 @@ td input {
   stroke-width: 2;
 }
 
+.export-menu {
+  position: relative;
+}
+
+.export-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  gap: 8px;
+  padding: 0 13px;
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 900;
+  box-shadow: 0 8px 24px rgba(22, 27, 34, 0.12);
+}
+
+.export-button svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.export-options {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.export-options button {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-weight: 800;
+}
+
+.export-options button:hover,
+.export-options button:focus-visible {
+  background: #eef1f5;
+}
+
+.export-options span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .primary-button,
 .ghost-button,
 .danger-button {
@@ -448,6 +512,11 @@ td input {
   .header-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .export-options {
+    right: auto;
+    left: 0;
   }
 
   .panel {

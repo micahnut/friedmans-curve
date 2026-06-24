@@ -79,8 +79,7 @@ This plots the observation at hour `25`.
 The top-right buttons are:
 
 - Print: opens the browser print dialog.
-- Download SVG: exports the chart as an SVG file.
-- Download PNG: exports the chart as a PNG image.
+- Export chart: choose PNG (best for sharing) or SVG (best for editing).
 
 The chart is designed to print in landscape format and fit on A4 or short bond paper.
 

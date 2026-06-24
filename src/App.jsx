@@ -659,13 +659,12 @@ function Icon({ name }) {
     );
   }
 
-  if (name === "svg") {
+  if (name === "download") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24">
         <path d="M12 3v12" />
         <path d="m7 10 5 5 5-5" />
         <path d="M5 21h14" />
-        <path d="M6 3h12v5H6z" />
       </svg>
     );
   }
@@ -773,7 +772,9 @@ function download(filename, content, type) {
 export default function App() {
   const [state, setState] = useState(loadState);
   const [showGuide, setShowGuide] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const chartRef = useRef(null);
+  const exportMenuRef = useRef(null);
   const observations = useMemo(
     () => sortedObservations(state.observations, state.patient.startTime),
     [state.observations, state.patient.startTime]
@@ -786,6 +787,24 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    if (!showExportMenu) return undefined;
+
+    const closeExportMenu = (event) => {
+      if (event.type === "keydown" ? event.key === "Escape" : !exportMenuRef.current?.contains(event.target)) {
+        setShowExportMenu(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeExportMenu);
+    document.addEventListener("keydown", closeExportMenu);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeExportMenu);
+      document.removeEventListener("keydown", closeExportMenu);
+    };
+  }, [showExportMenu]);
 
   const updatePatient = (field, value) => {
     setState((current) => ({
@@ -900,12 +919,30 @@ export default function App() {
               <button className="icon-button" type="button" title="Print chart" aria-label="Print chart" onClick={() => window.print()}>
                 <Icon name="print" />
               </button>
-              <button className="icon-button" type="button" title="Download SVG" aria-label="Download SVG" onClick={downloadSvg}>
-                <Icon name="svg" />
-              </button>
-              <button className="icon-button" type="button" title="Download PNG" aria-label="Download PNG" onClick={downloadPng}>
-                <Icon name="png" />
-              </button>
+              <div className="export-menu" ref={exportMenuRef}>
+                <button
+                  className="export-button"
+                  type="button"
+                  aria-expanded={showExportMenu}
+                  aria-haspopup="menu"
+                  onClick={() => setShowExportMenu((open) => !open)}
+                >
+                  <Icon name="download" />
+                  Export chart
+                </button>
+                {showExportMenu && (
+                  <div className="export-options" role="menu" aria-label="Export chart format">
+                    <button type="button" role="menuitem" onClick={() => { downloadPng(); setShowExportMenu(false); }}>
+                      Download PNG
+                      <span>Best for sharing</span>
+                    </button>
+                    <button type="button" role="menuitem" onClick={() => { downloadSvg(); setShowExportMenu(false); }}>
+                      Download SVG
+                      <span>Best for editing</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
