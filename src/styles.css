@@ -720,6 +720,19 @@ td input {
   .date-field,
   .start-time-field {
     grid-column: 1 / -1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .date-field input,
+  .start-time-field input,
+  tbody td:first-child input[type="time"] {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    min-inline-size: 0 !important;
+    -webkit-appearance: none;
+    appearance: none;
   }
 
   .chart-toolbar {
