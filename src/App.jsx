@@ -78,12 +78,40 @@ function makeSampleState() {
   };
 }
 
+function isLegacySampleState(state) {
+  const sample = makeSampleState();
+
+  if (
+    state?.patient?.patientName !== sample.patient.patientName ||
+    state?.patient?.residentName !== sample.patient.residentName ||
+    state?.patient?.finalDiagnosis !== sample.patient.finalDiagnosis ||
+    !Array.isArray(state?.observations) ||
+    state.observations.length !== sample.observations.length
+  ) {
+    return false;
+  }
+
+  return state.observations.every((observation, index) => {
+    const sampleObservation = sample.observations[index];
+    return ["time", "dayOffset", "dilation", "station", "guideLine", "note"].every(
+      (field) => observation[field] === sampleObservation[field]
+    );
+  });
+}
+
 function loadState() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
     const defaults = makeDefaultState();
 
     if (!stored || !stored.patient || !Array.isArray(stored.observations)) {
+      return defaults;
+    }
+
+    // Older builds persisted the bundled demo record. Treat that record as
+    // uninitialized so a first visit opens with an empty chart.
+    if (isLegacySampleState(stored)) {
+      localStorage.removeItem(STORAGE_KEY);
       return defaults;
     }
 
