@@ -252,6 +252,7 @@ input[type="checkbox"] {
 
 .table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--line);
   border-radius: 8px;
 }
@@ -435,12 +436,31 @@ td input {
 
 @media (max-width: 720px) {
   .app-shell {
-    padding: 14px;
+    padding: 12px;
   }
 
   .app-header {
     align-items: flex-start;
     flex-direction: column;
+    gap: 12px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .patient-grid {
+    gap: 10px;
+  }
+
+  input,
+  textarea {
+    font-size: 1rem;
   }
 
   .patient-grid {
@@ -454,6 +474,38 @@ td input {
   .chart-toolbar {
     align-items: flex-start;
     flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .chart-status {
+    text-align: left;
+  }
+
+  .chart-scroller {
+    max-height: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #curveChart {
+    min-width: 720px;
+  }
+
+  .data-actions {
+    gap: 8px;
+  }
+
+  .data-actions button {
+    flex: 1;
+  }
+
+  table {
+    min-width: 640px;
+  }
+
+  th,
+  td {
+    padding: 7px;
   }
 
   .guide-heading {
@@ -466,6 +518,20 @@ td input {
 }
 
 @media (max-width: 480px) {
+  h1 {
+    font-size: 1.65rem;
+  }
+
+  .header-actions {
+    gap: 8px;
+  }
+
+  .ghost-button,
+  .primary-button,
+  .danger-button {
+    padding: 0 10px;
+  }
+
   .patient-grid {
     grid-template-columns: 1fr;
   }
