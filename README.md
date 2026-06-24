@@ -7,7 +7,7 @@ The chart plots:
 - Cervical dilation in blue on the left 0-10 cm axis.
 - Fetal station in red on the right -5 to +5 axis.
 - Observation notes above the graph.
-- Optional dotted guide lines at selected timestamps.
+- Optional dotted event markers at selected timestamps.
 - Patient details, final diagnosis, resident name, and a small credit line.
 
 ## How To Use
@@ -34,14 +34,14 @@ Use the Observations table to plot each exam or event.
 - `Hour`: calculated automatically from Start Time, Time, and Day.
 - `Cervix`: cervical dilation from `0` to `10`.
 - `Station`: fetal station from `-5` to `5`.
-- `Guide`: check this to draw a dotted vertical timestamp line.
+- `Event marker`: check this to draw a dotted vertical timestamp line.
 - `Note`: event note, medication, intervention, or other label.
 
 Click `Add` to create a new observation row. Click `X` to remove a row.
 
-## Dotted Guide Lines
+## Event Markers
 
-The `Guide` checkbox draws a dotted vertical line at that row's timestamp.
+The `Event marker` checkbox draws a dotted vertical line at that row's timestamp.
 
 Use it when you want to mark an event time clearly, like:
 
@@ -52,7 +52,7 @@ Use it when you want to mark an event time clearly, like:
 - Mount
 - Baby out
 
-The guide line can be used even if the row has only a time and note.
+The event marker can be used even if the row has only a time and note.
 
 ## Notes
 
@@ -85,7 +85,7 @@ The chart is designed to print in landscape format and fit on A4 or short bond p
 
 ## Sample Data
 
-Click `Load Sample` to load example patient details and observations. Sample data includes plotted cervix/station points, notes, and checked guide lines for selected events.
+Click `Load Sample` to load example patient details and observations. Sample data includes plotted cervix/station points, notes, and checked event markers for selected events.
 
 Click `Clear` to remove all observation rows.
 

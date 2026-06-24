@@ -377,7 +377,7 @@ function Chart({ patient, observations, chartRef }) {
       aria-label="Generated Friedman's curve"
       viewBox={`0 0 ${width} ${height}`}
       xmlns="http://www.w3.org/2000/svg"
-      style={{ minWidth: `${width}px`, aspectRatio: `${width} / ${height}` }}
+      style={{ aspectRatio: `${width} / ${height}` }}
     >
       <rect width={width} height={height} fill="#ffffff" />
       <text x={width / 2} y="42" textAnchor="middle" fontSize="27" fontWeight="900" fill="#111820">
@@ -705,7 +705,7 @@ function GuidePage({ onBack }) {
 
           <article>
             <h3>Observations</h3>
-            <p>Each row can plot cervical dilation, station, notes, or a timestamp guide line.</p>
+            <p>Each row can plot cervical dilation, station, notes, or an event marker.</p>
             <ul>
               <li>Time is the clock time of the event.</li>
               <li>Day is 0 for the start date, 1 for the next day, 2 for the day after that.</li>
@@ -716,8 +716,8 @@ function GuidePage({ onBack }) {
           </article>
 
           <article>
-            <h3>Guide Button</h3>
-            <p>Check Guide on an observation row to draw a dotted vertical line at that timestamp, like the paper sample chart.</p>
+            <h3>Event Marker</h3>
+            <p>Check Event Marker on an observation row to draw a dotted vertical line at that timestamp, like the paper sample chart.</p>
             <ul>
               <li>Use it for admission, oxytocin, medication, procedures, mount, or baby out.</li>
               <li>It can be used even when the row only has a time and note.</li>
@@ -955,43 +955,50 @@ export default function App() {
         <section className="panel patient-panel" aria-label="Patient information">
           <div className="panel-heading">
             <h2>Patient</h2>
-            <button className="ghost-button" type="button" onClick={resetPatient}>
-              Reset
-            </button>
+            <div className="patient-actions">
+              <button className="ghost-button" type="button" onClick={loadSample}>
+                Load Sample
+              </button>
+              <button className="ghost-button" type="button" onClick={resetPatient}>
+                Reset
+              </button>
+            </div>
           </div>
 
           <div className="patient-grid">
             <label>
               Name
-              <input value={state.patient.patientName} autoComplete="off" type="text" onChange={(event) => updatePatient("patientName", event.target.value)} />
+              <input value={state.patient.patientName} autoComplete="off" placeholder="e.g., Maria Santos" type="text" onChange={(event) => updatePatient("patientName", event.target.value)} />
             </label>
             <label>
               Age
-              <input value={state.patient.patientAge} autoComplete="off" inputMode="numeric" type="text" onChange={(event) => updatePatient("patientAge", event.target.value)} />
+              <input value={state.patient.patientAge} autoComplete="off" inputMode="numeric" placeholder="e.g., 24" type="text" onChange={(event) => updatePatient("patientAge", event.target.value)} />
             </label>
             <label>
               OB Score
-              <input value={state.patient.patientObScore} autoComplete="off" type="text" onChange={(event) => updatePatient("patientObScore", event.target.value)} />
+              <input value={state.patient.patientObScore} autoComplete="off" placeholder="e.g., G1P0" type="text" onChange={(event) => updatePatient("patientObScore", event.target.value)} />
             </label>
             <label>
               AOG
-              <input value={state.patient.patientAog} autoComplete="off" type="text" onChange={(event) => updatePatient("patientAog", event.target.value)} />
+              <input value={state.patient.patientAog} autoComplete="off" placeholder="e.g., 39 2/7 weeks" type="text" onChange={(event) => updatePatient("patientAog", event.target.value)} />
             </label>
             <label>
               Date
+              <span className="field-help">Admission date</span>
               <input value={state.patient.patientDate} type="date" onChange={(event) => updatePatient("patientDate", event.target.value)} />
             </label>
             <label>
               Start Time
+              <span className="field-help">Time used to start the chart (labor onset, rupture of membranes, or first IE)</span>
               <input value={state.patient.startTime} type="time" onChange={(event) => updatePatient("startTime", event.target.value)} />
             </label>
             <label className="wide">
               Final Diagnosis
-              <textarea value={state.patient.finalDiagnosis} autoComplete="off" rows="4" onChange={(event) => updatePatient("finalDiagnosis", event.target.value)} />
+              <textarea value={state.patient.finalDiagnosis} autoComplete="off" placeholder="e.g., G1P1, delivered via normal spontaneous vaginal delivery" rows="4" onChange={(event) => updatePatient("finalDiagnosis", event.target.value)} />
             </label>
             <label>
               Resident
-              <input value={state.patient.residentName} autoComplete="off" type="text" onChange={(event) => updatePatient("residentName", event.target.value)} />
+              <input value={state.patient.residentName} autoComplete="off" placeholder="e.g., Dr. Santos" type="text" onChange={(event) => updatePatient("residentName", event.target.value)} />
             </label>
           </div>
         </section>
@@ -1036,7 +1043,7 @@ export default function App() {
                   <th scope="col">Hour</th>
                   <th scope="col">Cervix</th>
                   <th scope="col">Station</th>
-                  <th scope="col">Guide</th>
+                  <th scope="col">Event marker</th>
                   <th scope="col">Note</th>
                   <th scope="col"></th>
                 </tr>
@@ -1052,20 +1059,20 @@ export default function App() {
                         <input value={observation.time} type="time" onChange={(event) => updateObservation(observation.id, "time", event.target.value)} />
                       </td>
                       <td>
-                        <input value={observation.dayOffset} inputMode="numeric" type="number" min="0" step="1" onChange={(event) => updateObservation(observation.id, "dayOffset", event.target.value)} />
+                        <input value={observation.dayOffset} inputMode="numeric" placeholder="0" type="number" min="0" step="1" onChange={(event) => updateObservation(observation.id, "dayOffset", event.target.value)} />
                       </td>
                       <td className="hour-cell">{status.hour === null ? "--" : status.hour.toFixed(1)}</td>
                       <td>
-                        <input value={observation.dilation} inputMode="decimal" type="number" min="0" max="10" step="0.5" onChange={(event) => updateObservation(observation.id, "dilation", event.target.value)} />
+                        <input value={observation.dilation} inputMode="decimal" placeholder="0–10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateObservation(observation.id, "dilation", event.target.value)} />
                       </td>
                       <td>
-                        <input value={observation.station} inputMode="decimal" type="number" min="-5" max="5" step="1" onChange={(event) => updateObservation(observation.id, "station", event.target.value)} />
+                        <input value={observation.station} inputMode="decimal" placeholder="-5 to +5" type="number" min="-5" max="5" step="1" onChange={(event) => updateObservation(observation.id, "station", event.target.value)} />
                       </td>
                       <td className="checkbox-cell">
-                        <input checked={Boolean(observation.guideLine)} type="checkbox" title="Show dotted timestamp guide" aria-label="Show dotted timestamp guide" onChange={(event) => updateObservation(observation.id, "guideLine", event.target.checked)} />
+                        <input checked={Boolean(observation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateObservation(observation.id, "guideLine", event.target.checked)} />
                       </td>
                       <td>
-                        <input value={observation.note} type="text" onChange={(event) => updateObservation(observation.id, "note", event.target.value)} />
+                        <input value={observation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateObservation(observation.id, "note", event.target.value)} />
                       </td>
                       <td>
                         <button className="row-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation.id)}>
@@ -1080,9 +1087,6 @@ export default function App() {
           </div>
 
           <div className="data-actions">
-            <button className="ghost-button" type="button" onClick={loadSample}>
-              Load Sample
-            </button>
             <button className="danger-button" type="button" onClick={() => setState((current) => ({ ...current, observations: [] }))}>
               Clear
             </button>
