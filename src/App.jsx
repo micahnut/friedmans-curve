@@ -264,6 +264,7 @@ function buildSvgData(patient, observations) {
     if (observation.note.trim()) {
       notes.push({
         x: xForHour(status.hour),
+        time: observation.time,
         text: observation.note.trim()
       });
     }
@@ -565,10 +566,11 @@ function NoteLabels({ notes, grid }) {
     .slice(0, 16)
     .map((note) => {
       const noteLines = wrapText(note.text, 14);
-      const visibleLines =
-        noteLines.length > 6
-          ? [...noteLines.slice(0, 5), `${noteLines.slice(5).join(" ").slice(0, 13)}...`]
+      const visibleNoteLines =
+        noteLines.length > 5
+          ? [...noteLines.slice(0, 4), `${noteLines.slice(4).join(" ").slice(0, 13)}...`]
           : noteLines;
+      const visibleLines = [note.time, ...visibleNoteLines];
       const width = visibleLines.length * columnWidth;
       const naturalX = note.x + 4;
       const candidates = lanes.map((lane, laneIndex) => {
@@ -603,7 +605,16 @@ function NoteLabels({ notes, grid }) {
           const x = note.labelX + lineIndex * columnWidth;
 
           return (
-            <text key={`${line}-${lineIndex}`} x={x} y={y} fontSize="11" fontWeight="800" fill="#3e4650" textAnchor="start" transform={`rotate(-90 ${x} ${y})`}>
+            <text
+              key={`${line}-${lineIndex}`}
+              x={x}
+              y={y}
+              fontSize={lineIndex === 0 ? "9" : "11"}
+              fontWeight="800"
+              fill={lineIndex === 0 ? "#626a76" : "#3e4650"}
+              textAnchor="start"
+              transform={`rotate(-90 ${x} ${y})`}
+            >
               {line}
             </text>
           );
@@ -1047,12 +1058,12 @@ export default function App() {
               AOG
               <input value={state.patient.patientAog} autoComplete="off" placeholder="e.g., 39 2/7 weeks" type="text" onChange={(event) => updatePatient("patientAog", event.target.value)} />
             </label>
-            <label>
+            <label className="date-field">
               Date
               <span className="field-help">Admission date</span>
               <input value={state.patient.patientDate} type="date" onChange={(event) => updatePatient("patientDate", event.target.value)} />
             </label>
-            <label>
+            <label className="start-time-field">
               Start Time
               <span className="field-help">Time used to start the chart (labor onset, rupture of membranes, or first IE)</span>
               <input value={state.patient.startTime} type="time" onChange={(event) => updatePatient("startTime", event.target.value)} />
