@@ -36,6 +36,17 @@ function createObservation(values = {}) {
   };
 }
 
+function createObservationDraft(values = {}) {
+  return {
+    time: values.time || "",
+    dayOffset: values.dayOffset ?? "",
+    dilation: values.dilation ?? "",
+    station: values.station ?? "",
+    guideLine: values.guideLine ?? false,
+    note: values.note || ""
+  };
+}
+
 function makeDefaultState() {
   return {
     patient: {
@@ -181,6 +192,20 @@ function pointStatus(observation, startTime) {
   const validStation = station === null || (station >= -5 && station <= 5);
 
   return { hour, dilation, station, validTime, validDilation, validStation };
+}
+
+function nextObservationDraft(observations, startTime) {
+  const sorted = sortedObservations(observations, startTime);
+  const last = sorted.at(-1);
+  const lastHour = last ? hourFromStart(last.time, startTime, last.dayOffset) : null;
+  const nextHour = lastHour === null ? 0 : lastHour + 1;
+  const nextTime = timeFromStart(nextHour, startTime);
+  const nextDayOffset = dayOffsetFromStartHour(nextHour, startTime);
+
+  return createObservationDraft({
+    time: nextTime,
+    dayOffset: nextDayOffset ? String(nextDayOffset) : "0"
+  });
 }
 
 function sortedObservations(observations, startTime) {
@@ -846,6 +871,7 @@ function download(filename, content, type) {
 
 export default function App() {
   const [state, setState] = useState(loadState);
+  const [newObservation, setNewObservation] = useState(() => nextObservationDraft(state.observations, state.patient.startTime));
   const [showGuide, setShowGuide] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const chartRef = useRef(null);
@@ -858,6 +884,7 @@ export default function App() {
     () => buildSvgData(state.patient, state.observations),
     [state.patient, state.observations]
   );
+  const newObservationStatus = pointStatus(newObservation, state.patient.startTime);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -900,20 +927,31 @@ export default function App() {
     }));
   };
 
-  const addObservation = () => {
-    setState((current) => {
-      const sorted = sortedObservations(current.observations, current.patient.startTime);
-      const last = sorted.at(-1);
-      const lastHour = last ? hourFromStart(last.time, current.patient.startTime, last.dayOffset) : null;
-      const nextHour = lastHour === null ? 0 : lastHour + 1;
-      const nextTime = timeFromStart(nextHour, current.patient.startTime);
-      const nextDayOffset = dayOffsetFromStartHour(nextHour, current.patient.startTime);
+  const updateNewObservation = (field, value) => {
+    setNewObservation((current) => ({
+      ...current,
+      [field]: value
+    }));
+  };
 
-      return {
-        ...current,
-        observations: [...current.observations, createObservation({ time: nextTime, dayOffset: nextDayOffset ? String(nextDayOffset) : "" })]
-      };
-    });
+  const addObservation = () => {
+    const observation = createObservation(newObservation);
+    const nextObservations = [...state.observations, observation];
+
+    setState((current) => ({
+      ...current,
+      observations: [...current.observations, observation]
+    }));
+    setNewObservation(nextObservationDraft(nextObservations, state.patient.startTime));
+  };
+
+  const resetNewObservation = () => {
+    setNewObservation(nextObservationDraft(state.observations, state.patient.startTime));
+  };
+
+  const clearObservations = () => {
+    setState((current) => ({ ...current, observations: [] }));
+    setNewObservation(nextObservationDraft([], state.patient.startTime));
   };
 
   const deleteObservation = (id) => {
@@ -924,15 +962,19 @@ export default function App() {
   };
 
   const loadSample = () => {
-    setState(makeSampleState());
+    const sample = makeSampleState();
+    setState(sample);
+    setNewObservation(nextObservationDraft(sample.observations, sample.patient.startTime));
   };
 
   const resetPatient = () => {
+    const defaults = makeDefaultState();
     setState((current) => ({
       ...current,
-      patient: makeDefaultState().patient,
+      patient: defaults.patient,
       observations: []
     }));
+    setNewObservation(nextObservationDraft([], defaults.patient.startTime));
   };
 
   const downloadSvg = () => {
@@ -1105,65 +1147,118 @@ export default function App() {
         <aside className="panel data-panel" aria-label="Observation data">
           <div className="panel-heading">
             <h2>Observations</h2>
-            <button className="primary-button" type="button" onClick={addObservation}>
-              Add
-            </button>
           </div>
 
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Time</th>
-                  <th scope="col">Day</th>
-                  <th scope="col">Hour</th>
-                  <th scope="col">Cervix</th>
-                  <th scope="col">Station</th>
-                  <th scope="col">Event marker</th>
-                  <th scope="col">Note</th>
-                  <th scope="col"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {observations.map((observation) => {
-                  const status = pointStatus(observation, state.patient.startTime);
-                  const hasWarning = !status.validTime || !status.validDilation || !status.validStation;
-
-                  return (
-                    <tr key={observation.id} className={hasWarning ? "row-warning" : undefined}>
-                      <td data-label="Time">
-                        <input value={observation.time} type="time" onChange={(event) => updateObservation(observation.id, "time", event.target.value)} />
-                      </td>
-                      <td data-label="Day">
-                        <input value={observation.dayOffset} inputMode="numeric" placeholder="0" type="number" min="0" step="1" onChange={(event) => updateObservation(observation.id, "dayOffset", event.target.value)} />
-                      </td>
-                      <td className="hour-cell" data-label="Hour">{status.hour === null ? "--" : status.hour.toFixed(1)}</td>
-                      <td data-label="Cervix">
-                        <input value={observation.dilation} inputMode="decimal" placeholder="0–10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateObservation(observation.id, "dilation", event.target.value)} />
-                      </td>
-                      <td data-label="Station">
-                        <input value={observation.station} inputMode="decimal" placeholder="-5 to +5" type="number" min="-5" max="5" step="1" onChange={(event) => updateObservation(observation.id, "station", event.target.value)} />
-                      </td>
-                      <td className="checkbox-cell" data-label="Event marker">
-                        <input checked={Boolean(observation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateObservation(observation.id, "guideLine", event.target.checked)} />
-                      </td>
-                      <td data-label="Note">
-                        <input value={observation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateObservation(observation.id, "note", event.target.value)} />
-                      </td>
-                      <td data-label="Remove observation">
-                        <button className="row-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation.id)}>
-                          X
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="entry-card" aria-label="New observation">
+            <div className="entry-heading">
+              <h3>New observation</h3>
+              <span>Enter the next labor record, then add it to the chart.</span>
+            </div>
+            <div className="entry-grid">
+              <label className="entry-time">
+                Time
+                <input value={newObservation.time} type="time" onChange={(event) => updateNewObservation("time", event.target.value)} />
+              </label>
+              <label className="entry-day">
+                Day
+                <input value={newObservation.dayOffset} inputMode="numeric" placeholder="0" type="number" min="0" step="1" onChange={(event) => updateNewObservation("dayOffset", event.target.value)} />
+              </label>
+              <div className="computed-field">
+                <span>Hour</span>
+                <strong>{newObservationStatus.hour === null ? "--" : newObservationStatus.hour.toFixed(1)}</strong>
+              </div>
+              <label className="entry-cervix">
+                Cervix
+                <input value={newObservation.dilation} inputMode="decimal" placeholder="0–10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateNewObservation("dilation", event.target.value)} />
+              </label>
+              <label className="entry-station">
+                Station
+                <input value={newObservation.station} inputMode="decimal" placeholder="-5 to +5" type="number" min="-5" max="5" step="1" onChange={(event) => updateNewObservation("station", event.target.value)} />
+              </label>
+              <label className="checkbox-field">
+                Event marker
+                <input checked={Boolean(newObservation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateNewObservation("guideLine", event.target.checked)} />
+              </label>
+              <label className="entry-note">
+                Note
+                <input value={newObservation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateNewObservation("note", event.target.value)} />
+              </label>
+            </div>
+            <div className="entry-actions">
+              <button className="ghost-button" type="button" onClick={resetNewObservation}>
+                Reset entry
+              </button>
+              <button className="primary-button" type="button" onClick={addObservation}>
+                Add to chart
+              </button>
+            </div>
           </div>
+
+          <div className="recorded-heading">
+            <h3>Recorded observations</h3>
+            <span>{observations.length ? `${observations.length} record${observations.length === 1 ? "" : "s"}` : "No records yet"}</span>
+          </div>
+
+          {observations.length ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Time</th>
+                    <th scope="col">Day</th>
+                    <th scope="col">Hour</th>
+                    <th scope="col">Cervix</th>
+                    <th scope="col">Station</th>
+                    <th scope="col">Event marker</th>
+                    <th scope="col">Note</th>
+                    <th scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {observations.map((observation) => {
+                    const status = pointStatus(observation, state.patient.startTime);
+                    const hasWarning = !status.validTime || !status.validDilation || !status.validStation;
+
+                    return (
+                      <tr key={observation.id} className={hasWarning ? "row-warning" : undefined}>
+                        <td data-label="Time">
+                          <input value={observation.time} type="time" onChange={(event) => updateObservation(observation.id, "time", event.target.value)} />
+                        </td>
+                        <td data-label="Day">
+                          <input value={observation.dayOffset} inputMode="numeric" placeholder="0" type="number" min="0" step="1" onChange={(event) => updateObservation(observation.id, "dayOffset", event.target.value)} />
+                        </td>
+                        <td className="hour-cell" data-label="Hour">{status.hour === null ? "--" : status.hour.toFixed(1)}</td>
+                        <td data-label="Cervix">
+                          <input value={observation.dilation} inputMode="decimal" placeholder="0–10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateObservation(observation.id, "dilation", event.target.value)} />
+                        </td>
+                        <td data-label="Station">
+                          <input value={observation.station} inputMode="decimal" placeholder="-5 to +5" type="number" min="-5" max="5" step="1" onChange={(event) => updateObservation(observation.id, "station", event.target.value)} />
+                        </td>
+                        <td className="checkbox-cell" data-label="Event marker">
+                          <input checked={Boolean(observation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateObservation(observation.id, "guideLine", event.target.checked)} />
+                        </td>
+                        <td data-label="Note">
+                          <input value={observation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateObservation(observation.id, "note", event.target.value)} />
+                        </td>
+                        <td data-label="Remove observation">
+                          <button className="row-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation.id)}>
+                            X
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="empty-state">
+              No observations yet. Fill out the new observation form above, then tap Add to chart.
+            </div>
+          )}
 
           <div className="data-actions">
-            <button className="danger-button" type="button" onClick={() => setState((current) => ({ ...current, observations: [] }))}>
+            <button className="danger-button" type="button" disabled={!observations.length} onClick={clearObservations}>
               Clear
             </button>
           </div>

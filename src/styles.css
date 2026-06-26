@@ -600,6 +600,109 @@ td input {
   margin-top: 14px;
 }
 
+.entry-card {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.entry-heading,
+.recorded-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.entry-heading span,
+.recorded-heading span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.entry-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(90px, 0.6fr) minmax(70px, 0.45fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(220px, 1.6fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.computed-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.computed-field strong {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  color: var(--muted);
+  font-size: 0.94rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  text-transform: none;
+}
+
+.checkbox-field {
+  justify-items: start;
+}
+
+.checkbox-field input {
+  margin-top: 7px;
+}
+
+.entry-note {
+  min-width: 0;
+}
+
+.entry-time,
+.entry-day,
+.entry-cervix,
+.entry-station {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.entry-time input,
+.entry-day input {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  min-inline-size: 0 !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.entry-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.recorded-heading {
+  margin-bottom: 10px;
+}
+
+.empty-state {
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-align: center;
+}
+
 .guide-page {
   max-width: 1120px;
 }
@@ -649,9 +752,27 @@ td input {
   margin-top: 5px;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1366px) {
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .entry-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .entry-time,
+  .entry-day,
+  .computed-field,
+  .entry-cervix,
+  .entry-station,
+  .checkbox-field,
+  .entry-note {
+    grid-column: auto;
+  }
+
+  .entry-note {
+    grid-column: span 2;
   }
 
   .patient-grid {
@@ -698,7 +819,7 @@ td input {
 
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .table-wrap {
     border: 0;
   }
@@ -850,6 +971,38 @@ td input {
 
   .data-actions button {
     flex: 1;
+  }
+
+  .entry-heading,
+  .recorded-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .entry-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .entry-time,
+  .entry-day,
+  .computed-field,
+  .entry-cervix,
+  .entry-station,
+  .checkbox-field {
+    grid-column: auto;
+  }
+
+  .entry-note {
+    grid-column: 1 / -1;
+  }
+
+  .entry-actions {
+    flex-direction: column-reverse;
+  }
+
+  .entry-actions button {
+    width: 100%;
   }
 
   .guide-heading {
