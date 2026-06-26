@@ -73,6 +73,7 @@ function makeSampleState() {
       patientAge: "23",
       patientObScore: "G1P0",
       patientAog: "40 2/7 weeks",
+      startTime: "06:00",
       finalDiagnosis:
         "1. G1P1(1001), Pregnancy Uterine, delivered by Normal Spontaneous Vaginal Delivery with mediolateral episiotomy and repair under local anesthesia, male, cephalic, term, appropriate for gestational age ",
       residentName: "Dr. Yu"
@@ -183,6 +184,14 @@ function formatDisplayTime(value) {
   const displayHours = hours % 12 || 12;
 
   return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
+}
+
+function formatStationValue(value) {
+  const station = numberOrNull(value);
+
+  if (station === null) return "--";
+  if (station > 0) return `+${station}`;
+  return String(station);
 }
 
 function numberOrNull(value) {
@@ -911,7 +920,7 @@ function Icon({ name }) {
   );
 }
 
-function GuidePage({ onBack }) {
+function GuidePage() {
   return (
     <main className="guide-page">
       <section className="panel guide-panel" aria-labelledby="guide-title">
@@ -920,9 +929,6 @@ function GuidePage({ onBack }) {
             <p className="eyebrow">User Guide</p>
             <h2 id="guide-title">How to use the Friedman&apos;s Curve Builder</h2>
           </div>
-          <button className="primary-button" type="button" onClick={onBack}>
-            Back to chart
-          </button>
         </div>
 
         <div className="guide-grid">
@@ -1026,6 +1032,20 @@ export default function App() {
   const newObservationWarnings = observationWarnings(newObservation, state.patient.startTime, state.observations).filter(
     (message) => message !== "Enter cervix, station, a note, or mark it as an event."
   );
+  const confirmationType = confirmation?.type;
+  const confirmationObservation = confirmation?.observation;
+  const confirmationObservationStatus = confirmationObservation ? pointStatus(confirmationObservation, state.patient.startTime) : null;
+  const confirmationObservationDetails = confirmationObservation
+    ? [
+        ["Time", formatDisplayTime(confirmationObservation.time)],
+        ["Day", normalizedDay(confirmationObservation.dayOffset)],
+        ["Hour", confirmationObservationStatus?.hour === null ? "--" : confirmationObservationStatus?.hour.toFixed(1)],
+        ["Cervix", confirmationObservation.dilation === "" ? "--" : `${confirmationObservation.dilation} cm`],
+        ["Station", formatStationValue(confirmationObservation.station)],
+        ["Event marker", confirmationObservation.guideLine ? "Yes" : "No"],
+        ["Note", confirmationObservation.note.trim() || "--"]
+      ]
+    : [];
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -1110,14 +1130,18 @@ export default function App() {
 
   const clearObservations = () => {
     if (!state.observations.length) return;
-    setConfirmation("clear-observations");
+    setConfirmation({ type: "clear-observations" });
   };
 
-  const deleteObservation = (id) => {
+  const confirmDeleteObservation = (id) => {
     setState((current) => ({
       ...current,
       observations: current.observations.filter((observation) => observation.id !== id)
     }));
+  };
+
+  const deleteObservation = (observation) => {
+    setConfirmation({ type: "delete-observation", observation: { ...observation } });
   };
 
   const loadSample = () => {
@@ -1142,7 +1166,7 @@ export default function App() {
     const hasObservations = state.observations.length > 0;
 
     if (hasPatientInfo || hasObservations) {
-      setConfirmation("reset-patient");
+      setConfirmation({ type: "reset-patient" });
       return;
     }
 
@@ -1150,12 +1174,16 @@ export default function App() {
   };
 
   const confirmPendingAction = () => {
-    if (confirmation === "clear-observations") {
+    if (confirmationType === "clear-observations") {
       confirmClearObservations();
     }
 
-    if (confirmation === "reset-patient") {
+    if (confirmationType === "reset-patient") {
       confirmResetPatient();
+    }
+
+    if (confirmationType === "delete-observation" && confirmationObservation?.id) {
+      confirmDeleteObservation(confirmationObservation.id);
     }
 
     setConfirmation(null);
@@ -1251,7 +1279,7 @@ export default function App() {
       </header>
 
       {showGuide ? (
-        <GuidePage onBack={() => setShowGuide(false)} />
+        <GuidePage />
       ) : (
       <main className="workspace">
         <section className="panel patient-panel" aria-label="Patient information">
@@ -1365,6 +1393,10 @@ export default function App() {
                 <span>Hour</span>
                 <strong>{newObservationStatus.hour === null ? "--" : newObservationStatus.hour.toFixed(1)}</strong>
               </div>
+              <label className="checkbox-field">
+                Event marker
+                <input checked={Boolean(newObservation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateNewObservation("guideLine", event.target.checked)} />
+              </label>
               <label className="entry-cervix">
                 Cervix
                 <input value={newObservation.dilation} inputMode="decimal" placeholder="0–10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateNewObservation("dilation", event.target.value)} />
@@ -1372,10 +1404,6 @@ export default function App() {
               <label className="entry-station">
                 Station
                 <input value={newObservation.station} inputMode="decimal" placeholder="-5 to +5" type="number" min="-5" max="5" step="1" onChange={(event) => updateNewObservation("station", event.target.value)} />
-              </label>
-              <label className="checkbox-field">
-                Event marker
-                <input checked={Boolean(newObservation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateNewObservation("guideLine", event.target.checked)} />
               </label>
               <label className="entry-note">
                 Note
@@ -1454,7 +1482,7 @@ export default function App() {
                           )}
                         </td>
                         <td data-label="Remove observation">
-                          <button className="row-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation.id)}>
+                          <button className="row-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation)}>
                             X
                           </button>
                         </td>
@@ -1484,20 +1512,40 @@ export default function App() {
             <div className="confirm-icon" aria-hidden="true">!</div>
             <div className="confirm-copy">
               <h2 id="confirm-title">
-                {confirmation === "clear-observations" ? "Clear observations?" : "Reset patient details?"}
+                {confirmationType === "clear-observations"
+                  ? "Clear observations?"
+                  : confirmationType === "delete-observation"
+                    ? "Delete this observation?"
+                    : "Reset patient details?"}
               </h2>
               <p id="confirm-message">
-                {confirmation === "clear-observations"
+                {confirmationType === "clear-observations"
                   ? "This will remove all recorded observations from the chart. This cannot be undone."
-                  : "This will reset patient details and remove all observations from the chart. This cannot be undone."}
+                  : confirmationType === "delete-observation"
+                    ? "This will remove only the observation shown below. This cannot be undone."
+                    : "This will reset patient details and remove all observations from the chart. This cannot be undone."}
               </p>
+              {confirmationType === "delete-observation" && (
+                <dl className="confirm-details" aria-label="Observation to delete">
+                  {confirmationObservationDetails.map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </div>
             <div className="confirm-actions">
               <button className="ghost-button" type="button" onClick={() => setConfirmation(null)}>
                 Cancel
               </button>
               <button className="danger-button confirm-danger" type="button" onClick={confirmPendingAction}>
-                {confirmation === "clear-observations" ? "Clear observations" : "Reset all"}
+                {confirmationType === "clear-observations"
+                  ? "Clear observations"
+                  : confirmationType === "delete-observation"
+                    ? "Delete observation"
+                    : "Reset all"}
               </button>
             </div>
           </section>
