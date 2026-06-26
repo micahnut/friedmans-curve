@@ -172,6 +172,19 @@ function timeFromStart(hour, startTime) {
   return `${hours}:${minutes}`;
 }
 
+function formatDisplayTime(value) {
+  const minutesFromMidnight = minutesFromTime(value);
+
+  if (minutesFromMidnight === null) return value || "--";
+
+  const hours = Math.floor(minutesFromMidnight / 60);
+  const minutes = minutesFromMidnight % 60;
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHours = hours % 12 || 12;
+
+  return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
+}
+
 function numberOrNull(value) {
   if (value === "" || value === null || value === undefined) return null;
   const number = Number(value);
@@ -192,6 +205,56 @@ function pointStatus(observation, startTime) {
   const validStation = station === null || (station >= -5 && station <= 5);
 
   return { hour, dilation, station, validTime, validDilation, validStation };
+}
+
+function normalizedDay(value) {
+  const day = numberOrNull(value);
+  return String(day === null ? 0 : Math.max(0, day));
+}
+
+function observationWarnings(observation, startTime, observations = [], currentId = null) {
+  const status = pointStatus(observation, startTime);
+  const messages = [];
+  const currentMinutes = minutesFromTime(observation.time);
+  const startMinutes = minutesFromTime(startTime);
+  const day = numberOrNull(observation.dayOffset);
+  const duplicate = observation.time
+    ? observations.some((item) =>
+        item.id !== currentId &&
+        item.time === observation.time &&
+        normalizedDay(item.dayOffset) === normalizedDay(observation.dayOffset)
+      )
+    : false;
+
+  if (!observation.time) {
+    messages.push("Enter a time for this observation.");
+  } else if (!status.validTime && day === 0 && currentMinutes !== null && startMinutes !== null && currentMinutes < startMinutes) {
+    messages.push("This time is before the chart start. Use Day 1 if it happened after midnight.");
+  } else if (!status.validTime) {
+    messages.push("Check the time/day. This observation cannot be plotted yet.");
+  }
+
+  if (day !== null && day < 0) {
+    messages.push("Day cannot be negative.");
+  }
+
+  if (status.dilation !== null && !status.validDilation) {
+    messages.push("Cervix should be between 0 and 10 cm.");
+  }
+
+  if (status.station !== null && !status.validStation) {
+    messages.push("Station should be between -5 and +5.");
+  }
+
+  if (status.dilation === null && status.station === null && !observation.note.trim() && !observation.guideLine) {
+    messages.push("Enter cervix, station, a note, or mark it as an event.");
+  }
+
+  if (duplicate) {
+    messages.push("Another observation already uses this same time and day.");
+  }
+
+  return messages;
 }
 
 function nextObservationDraft(observations, startTime) {
@@ -216,12 +279,52 @@ function sortedObservations(observations, startTime) {
   });
 }
 
+function clinicalSummary(observations, startTime) {
+  const validObservations = sortedObservations(observations, startTime)
+    .map((observation) => ({
+      observation,
+      status: pointStatus(observation, startTime)
+    }))
+    .filter(({ status }) => status.validTime && status.validDilation && status.validStation && status.hour !== null);
+  const latest = validObservations.at(-1);
+
+  if (!latest) {
+    return {
+      hasData: false,
+      items: [
+        ["Start", formatDisplayTime(startTime)],
+        ["Latest", "--"],
+        ["Elapsed", "--"],
+        ["Cervix", "--"],
+        ["Station", "--"]
+      ]
+    };
+  }
+
+  const latestDilation = [...validObservations].reverse().find(({ status }) => status.dilation !== null)?.status.dilation;
+  const latestStation = [...validObservations].reverse().find(({ status }) => status.station !== null)?.status.station;
+
+  return {
+    hasData: true,
+    items: [
+      ["Start", formatDisplayTime(startTime)],
+      ["Latest", formatDisplayTime(latest.observation.time)],
+      ["Elapsed", `${latest.status.hour.toFixed(1)}h`],
+      ["Cervix", latestDilation === undefined ? "--" : `${latestDilation} cm`],
+      ["Station", latestStation === undefined ? "--" : `${latestStation > 0 ? "+" : ""}${latestStation}`],
+      ["Records", String(validObservations.length)]
+    ]
+  };
+}
+
 function buildSvgData(patient, observations) {
   const baseWidth = 1200;
-  const height = 850;
   const left = 92;
-  const top = 226;
-  const bottom = 734;
+  const noteObservations = observations.filter((observation) => observation.note.trim());
+  const top = noteObservations.length ? 260 : 226;
+  const desiredGridHeight = 508;
+  const bottom = top + desiredGridHeight;
+  const height = bottom + 116;
   const hourWidth = 57;
   const maxObservationHour = Math.max(
     18,
@@ -289,7 +392,7 @@ function buildSvgData(patient, observations) {
     if (observation.note.trim()) {
       notes.push({
         x: xForHour(status.hour),
-        time: observation.time,
+        time: formatDisplayTime(observation.time),
         text: observation.note.trim()
       });
     }
@@ -301,7 +404,7 @@ function buildSvgData(patient, observations) {
     grid,
     xForHour,
     yForDilation,
-    timeFromHour: (hour) => timeFromStart(hour, patient.startTime),
+    timeFromHour: (hour) => formatDisplayTime(timeFromStart(hour, patient.startTime)),
     maxHour,
     dilationPoints,
     stationPoints,
@@ -362,28 +465,62 @@ function wrapHeaderValue(value, maxChars, maxLines = 5) {
   return visibleLines;
 }
 
+function formatDisplayDate(value) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) return value;
+
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+}
+
 function Chart({ patient, observations, chartRef }) {
   const data = useMemo(() => buildSvgData(patient, observations), [patient, observations]);
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const { width, grid } = data;
   const info = [
-    ["Name", patient.patientName, 300],
-    ["Age", patient.patientAge, 145],
-    ["OB score", patient.patientObScore, 145],
-    ["AOG", patient.patientAog, 210],
-    ["Date", patient.patientDate, 145]
+    ["Name", patient.patientName, 3.2],
+    ["Age", patient.patientAge, 1.15],
+    ["OB score", patient.patientObScore, 2.05],
+    ["AOG", patient.patientAog, 2.3],
+    ["Date", formatDisplayDate(patient.patientDate), 1.95]
   ];
   const headerLineHeight = 16;
-  const headerItems = info.map(([label, value, slotWidth]) => {
-    const maxChars = Math.max(5, Math.floor((slotWidth - 88) / 7.6));
-    return {
+  const headerLabelWidths = {
+    Name: 62,
+    Age: 54,
+    "OB score": 82,
+    AOG: 58,
+    Date: 58
+  };
+  const headerGap = 18;
+  const headerWeight = info.reduce((total, [, , weight]) => total + weight, 0);
+  const headerWidth = grid.right - grid.left;
+  let headerCursorX = grid.left;
+  const headerItems = info.map(([label, value, weight]) => {
+    const slotWidth = (headerWidth * weight) / headerWeight;
+    const labelWidth = headerLabelWidths[label] || 70;
+    const valueX = headerCursorX + labelWidth;
+    const lineEndX = headerCursorX + slotWidth - headerGap;
+    const maxChars = Math.max(5, Math.floor((lineEndX - valueX) / 7.4));
+    const item = {
       label,
-      lines: wrapHeaderValue(value, maxChars),
-      slotWidth
+      lines: wrapHeaderValue(value, maxChars, 3),
+      x: headerCursorX,
+      valueX,
+      lineEndX
+    };
+    headerCursorX += slotWidth;
+
+    return {
+      ...item
     };
   });
   const maxHeaderLines = Math.max(...headerItems.map((item) => item.lines.length));
-  let cursorX = grid.left;
   const diagnosisText = patient.finalDiagnosis ? `Final Diagnosis: ${patient.finalDiagnosis}` : "Final Diagnosis:";
   const diagnosisLines = wrapText(diagnosisText, patient.residentName ? 102 : 132);
   const hasFooter = Boolean(patient.finalDiagnosis || patient.residentName);
@@ -429,23 +566,20 @@ function Chart({ patient, observations, chartRef }) {
         Generated chart
       </text>
 
-      {headerItems.map(({ label, lines, slotWidth }) => {
-        const x = cursorX;
-        cursorX += slotWidth;
-
+      {headerItems.map(({ label, lines, x, valueX, lineEndX }) => {
         return (
           <g key={label}>
             <text x={x} y="105" fontSize="14" fontWeight="900" fill="#1c1f24">
               {label}:
             </text>
-            <text x={x + 74} y="105" fontSize="15" fontWeight="700" fill="#1c1f24">
+            <text x={valueX} y="105" fontSize="15" fontWeight="700" fill="#1c1f24">
               {lines.map((line, index) => (
-                <tspan key={`${line}-${index}`} x={x + 74} dy={index === 0 ? 0 : headerLineHeight}>
+                <tspan key={`${line}-${index}`} x={valueX} dy={index === 0 ? 0 : headerLineHeight}>
                   {line}
                 </tspan>
               ))}
             </text>
-            <line x1={x + 72} y1="110" x2={x + slotWidth - 14} y2="110" stroke="#1c1f24" strokeWidth="1.5" />
+            <line x1={valueX - 2} y1="110" x2={lineEndX} y2="110" stroke="#1c1f24" strokeWidth="1.5" />
           </g>
         );
       })}
@@ -582,68 +716,67 @@ function Chart({ patient, observations, chartRef }) {
 }
 
 function NoteLabels({ notes, grid }) {
-  const columnWidth = 13;
-  const lanes = Array.from({ length: 4 }, (_, index) => ({
-    y: grid.top - 12 - index * 22,
-    endX: grid.left
-  }));
-  const layouts = notes
+  const labelGap = 8;
+  const charWidth = 5.8;
+  const lineHeight = 12;
+  const preparedNotes = notes
     .slice(0, 16)
     .map((note) => {
-      const noteLines = wrapText(note.text, 14);
-      const visibleNoteLines =
-        noteLines.length > 5
-          ? [...noteLines.slice(0, 4), `${noteLines.slice(4).join(" ").slice(0, 13)}...`]
-          : noteLines;
-      const visibleLines = [note.time, ...visibleNoteLines];
-      const width = visibleLines.length * columnWidth;
-      const naturalX = note.x + 4;
+      const labelText = `${note.time} · ${note.text}`;
+      const labelLines = wrapText(labelText, 28);
+      const width = Math.min(210, Math.max(86, Math.max(...labelLines.map((line) => line.length)) * charWidth + 18));
+      const height = labelLines.length * lineHeight + 12;
+
+      return {
+        ...note,
+        width,
+        height,
+        labelLines
+      };
+    });
+  const lanes = Array.from({ length: 3 }, (_, index) => ({
+    bottomY: grid.top - 8 - index * 38,
+    endX: grid.left
+  }));
+  const layouts = preparedNotes
+    .map((note) => {
+      const naturalX = note.x - note.width / 2;
       const candidates = lanes.map((lane, laneIndex) => {
-        const x = Math.max(naturalX, lane.endX + 8);
+        const x = Math.max(Math.max(grid.left + 4, naturalX), lane.endX + labelGap);
         return {
           laneIndex,
           x,
-          fits: x + width <= grid.right - 4
+          fits: x + note.width <= grid.right - 4
         };
       });
       const placement = candidates.find((candidate) => candidate.fits) || candidates.reduce((best, candidate) => (candidate.x < best.x ? candidate : best));
       const lane = lanes[placement.laneIndex];
-      const labelX = Math.min(placement.x, Math.max(grid.left + 4, grid.right - width - 4));
+      const labelX = Math.min(placement.x, Math.max(grid.left + 4, grid.right - note.width - 4));
 
-      lane.endX = labelX + width;
+      lane.endX = labelX + note.width;
 
       return {
         ...note,
         labelX,
-        y: lane.y,
-        visibleLines
+        y: lane.bottomY - note.height
       };
     });
 
   return layouts.map((note) => {
     const y = note.y;
+    const connectorY = y + note.height;
 
     return (
       <g key={`${note.x}-${note.text}`}>
-        <polyline points={`${note.x},${grid.top} ${note.x},${y + 3} ${note.labelX},${y + 3}`} fill="none" stroke="#9aa3af" strokeWidth="1" />
-        {note.visibleLines.map((line, lineIndex) => {
-          const x = note.labelX + lineIndex * columnWidth;
-
-          return (
-            <text
-              key={`${line}-${lineIndex}`}
-              x={x}
-              y={y}
-              fontSize={lineIndex === 0 ? "9" : "11"}
-              fontWeight="800"
-              fill={lineIndex === 0 ? "#626a76" : "#3e4650"}
-              textAnchor="start"
-              transform={`rotate(-90 ${x} ${y})`}
-            >
+        <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke="#9aa3af" strokeWidth="1" />
+        <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill="#ffffff" stroke="#d7dce3" strokeWidth="1" opacity="0.96" />
+        <text x={note.labelX + 9} y={y + 15} fontSize="10" fontWeight="800" fill="#3e4650">
+          {note.labelLines.map((line, index) => (
+            <tspan key={`${line}-${index}`} x={note.labelX + 9} dy={index === 0 ? 0 : lineHeight}>
               {line}
-            </text>
-          );
-        })}
+            </tspan>
+          ))}
+        </text>
       </g>
     );
   });
@@ -826,13 +959,13 @@ function GuidePage({ onBack }) {
 
           <article>
             <h3>Notes</h3>
-            <p>Notes appear above the graph as vertical labels. Long notes wrap into small columns, and close notes are staggered to reduce overlap.</p>
+            <p>Notes appear above the graph as horizontal callouts with the time included. Close notes are staggered to reduce overlap.</p>
           </article>
 
           <article>
             <h3>Long Labor</h3>
             <p>If labor continues past midnight, enter the next clock time and set Day to 1. The graph expands horizontally when observations go beyond 18 hours.</p>
-            <p>Example: Start Time 07:30, Time 08:30, Day 1 plots at hour 25.</p>
+            <p>Example: Start Time 7:30 AM, Time 8:30 AM, Day 1 plots at hour 25.</p>
           </article>
 
           <article>
@@ -874,6 +1007,7 @@ export default function App() {
   const [newObservation, setNewObservation] = useState(() => nextObservationDraft(state.observations, state.patient.startTime));
   const [showGuide, setShowGuide] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [confirmation, setConfirmation] = useState(null);
   const chartRef = useRef(null);
   const exportMenuRef = useRef(null);
   const observations = useMemo(
@@ -884,7 +1018,14 @@ export default function App() {
     () => buildSvgData(state.patient, state.observations),
     [state.patient, state.observations]
   );
+  const summary = useMemo(
+    () => clinicalSummary(state.observations, state.patient.startTime),
+    [state.observations, state.patient.startTime]
+  );
   const newObservationStatus = pointStatus(newObservation, state.patient.startTime);
+  const newObservationWarnings = observationWarnings(newObservation, state.patient.startTime, state.observations).filter(
+    (message) => message !== "Enter cervix, station, a note, or mark it as an event."
+  );
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -907,6 +1048,19 @@ export default function App() {
       document.removeEventListener("keydown", closeExportMenu);
     };
   }, [showExportMenu]);
+
+  useEffect(() => {
+    if (!confirmation) return undefined;
+
+    const closeConfirmation = (event) => {
+      if (event.key === "Escape") {
+        setConfirmation(null);
+      }
+    };
+
+    document.addEventListener("keydown", closeConfirmation);
+    return () => document.removeEventListener("keydown", closeConfirmation);
+  }, [confirmation]);
 
   const updatePatient = (field, value) => {
     setState((current) => ({
@@ -949,9 +1103,14 @@ export default function App() {
     setNewObservation(nextObservationDraft(state.observations, state.patient.startTime));
   };
 
-  const clearObservations = () => {
+  const confirmClearObservations = () => {
     setState((current) => ({ ...current, observations: [] }));
     setNewObservation(nextObservationDraft([], state.patient.startTime));
+  };
+
+  const clearObservations = () => {
+    if (!state.observations.length) return;
+    setConfirmation("clear-observations");
   };
 
   const deleteObservation = (id) => {
@@ -967,7 +1126,7 @@ export default function App() {
     setNewObservation(nextObservationDraft(sample.observations, sample.patient.startTime));
   };
 
-  const resetPatient = () => {
+  const confirmResetPatient = () => {
     const defaults = makeDefaultState();
     setState((current) => ({
       ...current,
@@ -975,6 +1134,31 @@ export default function App() {
       observations: []
     }));
     setNewObservation(nextObservationDraft([], defaults.patient.startTime));
+  };
+
+  const resetPatient = () => {
+    const defaults = makeDefaultState();
+    const hasPatientInfo = PATIENT_FIELDS.some((field) => state.patient[field] !== defaults.patient[field]);
+    const hasObservations = state.observations.length > 0;
+
+    if (hasPatientInfo || hasObservations) {
+      setConfirmation("reset-patient");
+      return;
+    }
+
+    confirmResetPatient();
+  };
+
+  const confirmPendingAction = () => {
+    if (confirmation === "clear-observations") {
+      confirmClearObservations();
+    }
+
+    if (confirmation === "reset-patient") {
+      confirmResetPatient();
+    }
+
+    setConfirmation(null);
   };
 
   const downloadSvg = () => {
@@ -1139,6 +1323,20 @@ export default function App() {
                 : `${chartData.validCount} observation${chartData.validCount === 1 ? "" : "s"} plotted`}
             </div>
           </div>
+          <div className="clinical-summary" aria-label="Clinical summary">
+            <div className="summary-heading">
+              <h3>Clinical summary</h3>
+              <span>{summary.hasData ? "Latest valid observation" : "No observations recorded yet"}</span>
+            </div>
+            <div className="summary-items">
+              {summary.items.map(([label, value]) => (
+                <div className="summary-item" key={label}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="chart-scroller">
             <Chart patient={state.patient} observations={state.observations} chartRef={chartRef} />
           </div>
@@ -1184,6 +1382,13 @@ export default function App() {
                 <input value={newObservation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateNewObservation("note", event.target.value)} />
               </label>
             </div>
+            {newObservationWarnings.length > 0 && (
+              <ul className="validation-list" aria-live="polite">
+                {newObservationWarnings.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            )}
             <div className="entry-actions">
               <button className="ghost-button" type="button" onClick={resetNewObservation}>
                 Reset entry
@@ -1217,7 +1422,8 @@ export default function App() {
                 <tbody>
                   {observations.map((observation) => {
                     const status = pointStatus(observation, state.patient.startTime);
-                    const hasWarning = !status.validTime || !status.validDilation || !status.validStation;
+                    const rowWarnings = observationWarnings(observation, state.patient.startTime, state.observations, observation.id);
+                    const hasWarning = rowWarnings.length > 0;
 
                     return (
                       <tr key={observation.id} className={hasWarning ? "row-warning" : undefined}>
@@ -1239,6 +1445,13 @@ export default function App() {
                         </td>
                         <td data-label="Note">
                           <input value={observation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateObservation(observation.id, "note", event.target.value)} />
+                          {rowWarnings.length > 0 && (
+                            <ul className="row-warning-messages">
+                              {rowWarnings.map((message) => (
+                                <li key={message}>{message}</li>
+                              ))}
+                            </ul>
+                          )}
                         </td>
                         <td data-label="Remove observation">
                           <button className="row-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation.id)}>
@@ -1264,6 +1477,31 @@ export default function App() {
           </div>
         </aside>
       </main>
+      )}
+      {confirmation && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setConfirmation(null)}>
+          <section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="confirm-icon" aria-hidden="true">!</div>
+            <div className="confirm-copy">
+              <h2 id="confirm-title">
+                {confirmation === "clear-observations" ? "Clear observations?" : "Reset patient details?"}
+              </h2>
+              <p id="confirm-message">
+                {confirmation === "clear-observations"
+                  ? "This will remove all recorded observations from the chart. This cannot be undone."
+                  : "This will reset patient details and remove all observations from the chart. This cannot be undone."}
+              </p>
+            </div>
+            <div className="confirm-actions">
+              <button className="ghost-button" type="button" onClick={() => setConfirmation(null)}>
+                Cancel
+              </button>
+              <button className="danger-button confirm-danger" type="button" onClick={confirmPendingAction}>
+                {confirmation === "clear-observations" ? "Clear observations" : "Reset all"}
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );
