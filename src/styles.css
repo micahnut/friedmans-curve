@@ -24,7 +24,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -180,7 +181,8 @@ label:focus-within .field-help {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   min-width: 0;
   min-inline-size: 0;
@@ -197,13 +199,15 @@ textarea {
 }
 
 input:not([type="checkbox"]):hover,
-textarea:hover {
+textarea:hover,
+select:hover {
   border-color: #aab4c2;
   background: #fbfcfe;
 }
 
 input:not([type="checkbox"]):focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   border-color: var(--blue);
   background: #fff;
   box-shadow: 0 0 0 3px rgba(15, 99, 206, 0.14);
@@ -227,6 +231,15 @@ textarea {
   line-height: 1.35;
   overflow-y: auto;
   resize: vertical;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #626a76 50%), linear-gradient(135deg, #626a76 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 5px 5px, 5px 5px;
+  padding-right: 30px;
 }
 
 input[type="number"] {
@@ -283,6 +296,10 @@ input[type="checkbox"] {
 
 .swatch.red {
   background: var(--red);
+}
+
+.swatch.amber {
+  background: #d39b00;
 }
 
 .chart-status {
@@ -882,6 +899,189 @@ td input {
   line-height: 1.35;
 }
 
+.annotation-section {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.annotation-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.annotation-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.annotation-heading > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.annotation-form {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.5fr) minmax(190px, 0.9fr) minmax(170px, 0.8fr) minmax(260px, 2fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.annotation-text textarea {
+  min-height: 68px;
+  max-height: 150px;
+}
+
+.annotation-add {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.annotation-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.annotation-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #db8fba;
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: #fff7fb;
+}
+
+.annotation-item.medication {
+  border-color: #d6a72c;
+  background: #fffbeb;
+}
+
+.annotation-item.intervention {
+  border-color: #6aa4dc;
+  background: #eff6ff;
+}
+
+.annotation-item.outcome {
+  border-color: #d97878;
+  background: #fff1f1;
+}
+
+.annotation-item strong,
+.annotation-item span {
+  display: block;
+}
+
+.annotation-item strong {
+  font-size: 0.84rem;
+}
+
+.annotation-item span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.annotation-item p {
+  margin: 7px 0 0;
+  color: #3e4650;
+  font-size: 0.84rem;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.oxytocin-section {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.oxytocin-form {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(80px, 0.45fr) minmax(150px, 0.9fr) minmax(110px, 0.65fr) minmax(110px, 0.65fr) minmax(220px, 1.6fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid #e2cc8c;
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.oxytocin-add {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.oxytocin-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.oxytocin-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 11px 12px;
+  border: 1px solid #e2cc8c;
+  border-left: 5px solid #c89200;
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.oxytocin-item.stop {
+  border-left-color: #7c8797;
+  background: #f7f8fa;
+}
+
+.oxytocin-event-time {
+  min-width: 78px;
+}
+
+.oxytocin-item strong,
+.oxytocin-item span {
+  display: block;
+}
+
+.oxytocin-item strong {
+  font-size: 0.84rem;
+}
+
+.oxytocin-item span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.oxytocin-item p {
+  margin: 5px 0 0;
+  color: #4f5865;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
 .row-warning-messages {
   margin-top: 6px;
   padding: 8px 10px 8px 24px;
@@ -1010,6 +1210,22 @@ td input {
 }
 
 @media (max-width: 1024px) {
+  .annotation-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .annotation-text {
+    grid-column: 1 / span 2;
+  }
+
+  .oxytocin-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .oxytocin-note {
+    grid-column: 1 / span 2;
+  }
+
   .table-wrap {
     border: 0;
   }
@@ -1206,6 +1422,47 @@ td input {
 
   .entry-actions button {
     width: 100%;
+  }
+
+  .annotation-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .annotation-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .annotation-form label:nth-child(3),
+  .annotation-text,
+  .annotation-add {
+    grid-column: 1 / -1;
+  }
+
+  .annotation-add {
+    width: 100%;
+  }
+
+  .annotation-list {
+    grid-template-columns: 1fr;
+  }
+
+  .oxytocin-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .oxytocin-note,
+  .oxytocin-add {
+    grid-column: 1 / -1;
+  }
+
+  .oxytocin-add {
+    width: 100%;
+  }
+
+  .oxytocin-list {
+    grid-template-columns: 1fr;
   }
 
   .confirm-dialog {
