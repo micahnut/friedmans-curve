@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const STORAGE_KEY = "friedmans-curve-builder-v2";
+// Oxytocin infusion tracking is intentionally hidden for now.
+// Change this to true when the feature is ready to return to the UI.
+const SHOW_OXYTOCIN_FEATURE = false;
 const PATIENT_FIELDS = [
   "patientName",
   "patientAge",
@@ -47,6 +50,52 @@ function createObservationDraft(values = {}) {
   };
 }
 
+function createChartAnnotation(values = {}) {
+  return {
+    id: values.id || makeId(),
+    observationId: values.observationId || "",
+    time: values.time || "",
+    dayOffset: values.dayOffset ?? "0",
+    targetSeries: values.targetSeries || "dilation",
+    type: values.type || "clinical",
+    text: values.text || ""
+  };
+}
+
+function createAnnotationDraft(values = {}) {
+  return {
+    observationId: values.observationId || "",
+    time: values.time || "",
+    dayOffset: values.dayOffset ?? "0",
+    targetSeries: values.targetSeries || "dilation",
+    type: values.type || "clinical",
+    text: values.text || ""
+  };
+}
+
+function createOxytocinEvent(values = {}) {
+  return {
+    id: values.id || makeId(),
+    time: values.time || "",
+    dayOffset: values.dayOffset ?? "0",
+    action: values.action || "start",
+    rate: values.rate ?? "",
+    unit: values.unit || "mU/min",
+    note: values.note || ""
+  };
+}
+
+function createOxytocinDraft(values = {}) {
+  return {
+    time: values.time || "",
+    dayOffset: values.dayOffset ?? "0",
+    action: values.action || "start",
+    rate: values.rate ?? "",
+    unit: values.unit || "mU/min",
+    note: values.note || ""
+  };
+}
+
 function makeDefaultState() {
   return {
     patient: {
@@ -59,12 +108,23 @@ function makeDefaultState() {
       finalDiagnosis: "",
       residentName: ""
     },
-    observations: []
+    observations: [],
+    annotations: [],
+    oxytocinEvents: []
   };
 }
 
 function makeSampleState() {
   const sample = makeDefaultState();
+  const observations = [
+    createObservation({ time: "07:30", dayOffset: "0", dilation: "4", station: "-3", note: "Admission" }),
+    createObservation({ time: "10:30", dayOffset: "0", dilation: "5", station: "-3", note: "oxytocin @ 8gtt/min" }),
+    createObservation({ time: "13:30", dayOffset: "0", dilation: "5", station: "-3", note: "" }),
+    createObservation({ time: "15:00", dayOffset: "0", dilation: "7", station: "-2", guideLine: true, note: "evening primerose 3 caps" }),
+    createObservation({ time: "15:30", dayOffset: "0", dilation: "8", station: "-1" }),
+    createObservation({ time: "15:50", dayOffset: "0", dilation: "10", station: "0", note: "mount" }),
+    createObservation({ time: "16:10", dayOffset: "0", dilation: "10", station: "5", guideLine: true, note: "baby out" })
+  ];
 
   return {
     patient: {
@@ -78,20 +138,40 @@ function makeSampleState() {
         "1. G1P1(1001), Pregnancy Uterine, delivered by Normal Spontaneous Vaginal Delivery with mediolateral episiotomy and repair under local anesthesia, male, cephalic, term, appropriate for gestational age ",
       residentName: "Dr. Yu"
     },
-    observations: [
-      createObservation({ time: "07:30", dayOffset: "0", dilation: "4", station: "-3", note: "Admission" }),
-      createObservation({ time: "10:30", dayOffset: "0", dilation: "5", station: "-3", note: "oxytocin @ 8gtt/min" }),
-      createObservation({ time: "13:30", dayOffset: "0", dilation: "5", station: "-3", note: "" }),
-      createObservation({ time: "15:00", dayOffset: "0", dilation: "7", station: "-2", guideLine: true, note: "evening primerose 3 caps" }),
-      createObservation({ time: "15:30", dayOffset: "0", dilation: "8", station: "-1" }),
-      createObservation({ time: "15:50", dayOffset: "0", dilation: "10", station: "0", note: "mount" }),
-      createObservation({ time: "16:10", dayOffset: "0", dilation: "10", station: "5", guideLine: true, note: "baby out" })
+    observations,
+    annotations: [
+      createChartAnnotation({
+        observationId: observations[0].id,
+        time: "07:30",
+        dayOffset: "0",
+        targetSeries: "dilation",
+        type: "clinical",
+        text: "FHR 140 bpm with moderate variability; contractions every 5–6 minutes."
+      }),
+      createChartAnnotation({
+        observationId: observations[4].id,
+        time: "15:30",
+        dayOffset: "0",
+        targetSeries: "dilation",
+        type: "intervention",
+        text: "Maternal repositioning and hydration initiated."
+      })
+    ],
+    oxytocinEvents: [
+      createOxytocinEvent({ time: "10:30", dayOffset: "0", action: "start", rate: "8", unit: "gtt/min", note: "Oxytocin started" }),
+      createOxytocinEvent({ time: "13:30", dayOffset: "0", action: "increase", rate: "12", unit: "gtt/min", note: "Titrated" }),
+      createOxytocinEvent({ time: "15:00", dayOffset: "0", action: "increase", rate: "16", unit: "gtt/min", note: "Titrated" }),
+      createOxytocinEvent({ time: "16:10", dayOffset: "0", action: "stop", rate: "", unit: "gtt/min", note: "Stopped after delivery" })
     ]
   };
 }
 
 function isLegacySampleState(state) {
   const sample = makeSampleState();
+
+  if (Array.isArray(state?.annotations) && state.annotations.length > 0) {
+    return false;
+  }
 
   if (
     state?.patient?.patientName !== sample.patient.patientName ||
@@ -129,7 +209,9 @@ function loadState() {
 
     return {
       patient: { ...defaults.patient, ...stored.patient },
-      observations: stored.observations.map(createObservation)
+      observations: stored.observations.map(createObservation),
+      annotations: Array.isArray(stored.annotations) ? stored.annotations.map(createChartAnnotation) : [],
+      oxytocinEvents: Array.isArray(stored.oxytocinEvents) ? stored.oxytocinEvents.map(createOxytocinEvent) : []
     };
   } catch {
     return makeDefaultState();
@@ -288,6 +370,57 @@ function sortedObservations(observations, startTime) {
   });
 }
 
+function sortedOxytocinEvents(events, startTime) {
+  return [...events].sort((a, b) => {
+    const hourA = hourFromStart(a.time, startTime, a.dayOffset);
+    const hourB = hourFromStart(b.time, startTime, b.dayOffset);
+    return (hourA ?? 999) - (hourB ?? 999);
+  });
+}
+
+function oxytocinActionLabel(action) {
+  return {
+    start: "Started",
+    increase: "Increased",
+    decrease: "Decreased",
+    stop: "Stopped",
+    resume: "Resumed"
+  }[action] || action;
+}
+
+function oxytocinEventWarnings(draft, events, startTime) {
+  const messages = [];
+  const hour = hourFromStart(draft.time, startTime, draft.dayOffset);
+  const rateRequired = draft.action !== "stop";
+
+  if (!draft.time) messages.push("Enter the event time.");
+  if (hour !== null && hour < 0) messages.push("This event is before the chart start. Check the day.");
+  if (rateRequired && draft.rate === "") messages.push("Enter the documented infusion rate.");
+  if (numberOrNull(draft.rate) !== null && Number(draft.rate) < 0) messages.push("Rate cannot be negative.");
+
+  if (draft.time && events.some((event) =>
+    event.time === draft.time && normalizedDay(event.dayOffset) === normalizedDay(draft.dayOffset)
+  )) {
+    messages.push("An oxytocin event already exists at this time and day.");
+  }
+
+  if (hour !== null && hour >= 0) {
+    let running = false;
+    sortedOxytocinEvents(events, startTime).forEach((event) => {
+      const eventHour = hourFromStart(event.time, startTime, event.dayOffset);
+      if (eventHour === null || eventHour >= hour) return;
+      running = event.action !== "stop";
+    });
+
+    if (draft.action === "start" && running) messages.push("The infusion is already active. Choose Increase or Decrease rate.");
+    if (["increase", "decrease"].includes(draft.action) && !running) messages.push("Start or resume the infusion before changing its rate.");
+    if (draft.action === "stop" && !running) messages.push("The infusion is not active at this time.");
+    if (draft.action === "resume" && running) messages.push("The infusion is already active. Choose a rate change instead.");
+  }
+
+  return messages;
+}
+
 function clinicalSummary(observations, startTime) {
   const validObservations = sortedObservations(observations, startTime)
     .map((observation) => ({
@@ -326,7 +459,7 @@ function clinicalSummary(observations, startTime) {
   };
 }
 
-function buildSvgData(patient, observations) {
+function buildSvgData(patient, observations, annotations = [], oxytocinEvents = []) {
   const baseWidth = 1200;
   const left = 92;
   const noteObservations = observations.filter((observation) => observation.note.trim());
@@ -339,6 +472,14 @@ function buildSvgData(patient, observations) {
     18,
     ...observations.map((observation) => {
       const hour = hourFromStart(observation.time, patient.startTime, observation.dayOffset);
+      return hour !== null && hour >= 0 ? Math.ceil(hour) : 0;
+    }),
+    ...annotations.map((annotation) => {
+      const hour = hourFromStart(annotation.time, patient.startTime, annotation.dayOffset);
+      return hour !== null && hour >= 0 ? Math.ceil(hour) : 0;
+    }),
+    ...oxytocinEvents.map((event) => {
+      const hour = hourFromStart(event.time, patient.startTime, event.dayOffset);
       return hour !== null && hour >= 0 ? Math.ceil(hour) : 0;
     })
   );
@@ -359,6 +500,7 @@ function buildSvgData(patient, observations) {
   const stationPoints = [];
   const guideLines = [];
   const notes = [];
+  const chartAnnotations = [];
   let validCount = 0;
   let warningCount = 0;
 
@@ -382,6 +524,7 @@ function buildSvgData(patient, observations) {
 
     if (status.dilation !== null) {
       dilationPoints.push({
+        observationId: observation.id,
         x: xForHour(status.hour),
         y: yForDilation(status.dilation),
         hour: status.hour,
@@ -391,6 +534,7 @@ function buildSvgData(patient, observations) {
 
     if (status.station !== null) {
       stationPoints.push({
+        observationId: observation.id,
         x: xForHour(status.hour),
         y: yForStation(status.station),
         hour: status.hour,
@@ -407,6 +551,95 @@ function buildSvgData(patient, observations) {
     }
   });
 
+  annotations.forEach((annotation, index) => {
+    const linkedObservation = observations.find((observation) => observation.id === annotation.observationId);
+    const annotationTime = linkedObservation?.time || annotation.time;
+    const annotationDay = linkedObservation?.dayOffset ?? annotation.dayOffset;
+    const hour = hourFromStart(annotationTime, patient.startTime, annotationDay);
+
+    if (hour === null || hour < 0 || !annotation.text.trim()) return;
+
+    const preferredPoints = annotation.targetSeries === "station" ? stationPoints : dilationPoints;
+    const fallbackPoints = annotation.targetSeries === "station" ? dilationPoints : stationPoints;
+    const preferredPoint = preferredPoints.find((point) => point.observationId === annotation.observationId)
+      || preferredPoints.find((point) => Math.abs(point.hour - hour) < 0.01);
+    const fallbackPoint = fallbackPoints.find((point) => point.observationId === annotation.observationId)
+      || fallbackPoints.find((point) => Math.abs(point.hour - hour) < 0.01);
+    const anchorPoint = preferredPoint || fallbackPoint;
+
+    chartAnnotations.push({
+      id: annotation.id,
+      x: anchorPoint?.x ?? xForHour(hour),
+      anchorY: anchorPoint?.y ?? grid.top + gridHeight * (0.42 + (index % 2) * 0.18),
+      time: formatDisplayTime(annotationTime),
+      targetSeries: annotation.targetSeries || "dilation",
+      type: annotation.type || "clinical",
+      text: annotation.text.trim()
+    });
+  });
+
+  const oxytocinBands = [];
+  const oxytocinChanges = [];
+  const validOxytocinEvents = sortedOxytocinEvents(oxytocinEvents, patient.startTime)
+    .map((event) => ({
+      ...event,
+      hour: hourFromStart(event.time, patient.startTime, event.dayOffset)
+    }))
+    .filter((event) => event.hour !== null && event.hour >= 0);
+  const latestClinicalHour = Math.max(
+    0,
+    ...dilationPoints.map((point) => point.hour),
+    ...stationPoints.map((point) => point.hour),
+    ...guideLines.map((line) => line.hour)
+  );
+  let infusionRunning = false;
+  let currentRate = "";
+  let currentUnit = "mU/min";
+  let intervalStart = null;
+
+  validOxytocinEvents.forEach((event) => {
+    if (infusionRunning && intervalStart !== null && event.hour > intervalStart) {
+      oxytocinBands.push({
+        startHour: intervalStart,
+        endHour: event.hour,
+        x1: xForHour(intervalStart),
+        x2: xForHour(event.hour),
+        rate: currentRate,
+        unit: currentUnit
+      });
+    }
+
+    oxytocinChanges.push({
+      ...event,
+      x: xForHour(event.hour),
+      timeLabel: formatDisplayTime(event.time)
+    });
+
+    if (event.action === "stop") {
+      infusionRunning = false;
+      currentRate = "";
+    } else {
+      infusionRunning = true;
+      currentRate = event.rate;
+      currentUnit = event.unit;
+    }
+
+    intervalStart = event.hour;
+  });
+
+  if (infusionRunning && intervalStart !== null) {
+    const endHour = Math.max(intervalStart + 0.5, latestClinicalHour);
+
+    oxytocinBands.push({
+      startHour: intervalStart,
+      endHour,
+      x1: xForHour(intervalStart),
+      x2: xForHour(endHour),
+      rate: currentRate,
+      unit: currentUnit
+    });
+  }
+
   return {
     width,
     height,
@@ -419,6 +652,9 @@ function buildSvgData(patient, observations) {
     stationPoints,
     guideLines,
     notes,
+    annotations: chartAnnotations,
+    oxytocinBands,
+    oxytocinChanges,
     validCount,
     warningCount
   };
@@ -487,8 +723,11 @@ function formatDisplayDate(value) {
   });
 }
 
-function Chart({ patient, observations, chartRef }) {
-  const data = useMemo(() => buildSvgData(patient, observations), [patient, observations]);
+function Chart({ patient, observations, annotations, oxytocinEvents, chartRef }) {
+  const data = useMemo(
+    () => buildSvgData(patient, observations, annotations, oxytocinEvents),
+    [patient, observations, annotations, oxytocinEvents]
+  );
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const { width, grid } = data;
   const info = [
@@ -541,6 +780,13 @@ function Chart({ patient, observations, chartRef }) {
   const diagnosisLineHeight = 17;
   const residentY = diagnosisY + Math.max(diagnosisLines.length, 1) * diagnosisLineHeight + 2;
   const height = hasFooter ? Math.max(data.height, residentY + 24) : data.height;
+  const presentationTop = Math.max(0, data.notes.length ? Math.min(legendY - 6, grid.top - 150) : legendY - 6);
+  const presentationBox = {
+    x: Math.max(0, grid.left - 70),
+    y: presentationTop,
+    width: Math.min(width, grid.right + 72) - Math.max(0, grid.left - 70),
+    height: Math.min(height, grid.bottom + 78) - presentationTop
+  };
   const showPointDetails = (point, series) => {
     const bounds = chartRef.current?.getBoundingClientRect();
 
@@ -564,10 +810,21 @@ function Chart({ patient, observations, chartRef }) {
         role="group"
         aria-label="Generated Friedman's curve. Hover or focus a plotted point to inspect it."
         viewBox={`0 0 ${width} ${height}`}
+        data-presentation-x={presentationBox.x}
+        data-presentation-y={presentationBox.y}
+        data-presentation-width={presentationBox.width}
+        data-presentation-height={presentationBox.height}
+        data-presentation-grid-top={grid.top}
+        data-presentation-grid-bottom={grid.bottom}
         xmlns="http://www.w3.org/2000/svg"
         style={{ aspectRatio: `${width} / ${height}` }}
       >
       <rect width={width} height={height} fill="#ffffff" />
+      <defs>
+        <marker id="annotation-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7b8794" />
+        </marker>
+      </defs>
       <text x={width / 2} y="42" textAnchor="middle" fontSize="27" fontWeight="900" fill="#111820">
         FRIEDMAN&apos;S CURVE
       </text>
@@ -592,6 +849,8 @@ function Chart({ patient, observations, chartRef }) {
           </g>
         );
       })}
+
+      {SHOW_OXYTOCIN_FEATURE && <OxytocinBands bands={data.oxytocinBands} grid={grid} />}
 
       {Array.from({ length: data.maxHour + 1 }, (_, hour) => {
         const x = data.xForHour(hour);
@@ -674,7 +933,9 @@ function Chart({ patient, observations, chartRef }) {
           opacity="0.72"
         />
       ))}
+      {SHOW_OXYTOCIN_FEATURE && <OxytocinTrack bands={data.oxytocinBands} changes={data.oxytocinChanges} grid={grid} />}
       <NoteLabels notes={data.notes} grid={grid} />
+      <ChartAnnotationLabels annotations={data.annotations} grid={grid} dilationPoints={data.dilationPoints} stationPoints={data.stationPoints} />
       <StartConnectors data={data} />
       <Series
         points={data.dilationPoints.map((point) => ({ ...point, time: data.timeFromHour(point.hour) }))}
@@ -776,12 +1037,186 @@ function NoteLabels({ notes, grid }) {
     const connectorY = y + note.height;
 
     return (
-      <g key={`${note.x}-${note.text}`}>
+      <g key={`${note.x}-${note.text}`} data-presentation-note="true" data-presentation-note-y={y}>
         <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke="#9aa3af" strokeWidth="1" />
         <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill="#ffffff" stroke="#d7dce3" strokeWidth="1" opacity="0.96" />
         <text x={note.labelX + 9} y={y + 15} fontSize="10" fontWeight="800" fill="#3e4650">
           {note.labelLines.map((line, index) => (
             <tspan key={`${line}-${index}`} x={note.labelX + 9} dy={index === 0 ? 0 : lineHeight}>
+              {line}
+            </tspan>
+          ))}
+        </text>
+      </g>
+    );
+  });
+}
+
+function OxytocinBands({ bands, grid }) {
+  if (!bands.length) return null;
+
+  return (
+    <g aria-label="Oxytocin infusion periods">
+      {bands.map((band, index) => (
+        <rect
+          key={`${band.startHour}-${band.endHour}-${index}`}
+          x={band.x1}
+          y={grid.top}
+          width={Math.max(2, band.x2 - band.x1)}
+          height={grid.bottom - grid.top}
+          fill="#f2c94c"
+          opacity="0.16"
+        />
+      ))}
+    </g>
+  );
+}
+
+function OxytocinTrack({ bands, changes, grid }) {
+  if (!changes.length) return null;
+
+  const trackY = grid.bottom - 16;
+
+  return (
+    <g aria-label="Oxytocin rate timeline">
+      {bands.map((band, index) => (
+        <line
+          key={`${band.startHour}-${band.endHour}-${index}`}
+          x1={band.x1}
+          y1={trackY}
+          x2={band.x2}
+          y2={trackY}
+          stroke="#c89200"
+          strokeWidth="5"
+          strokeLinecap="butt"
+          opacity="0.9"
+        />
+      ))}
+      {changes.map((change, index) => {
+        const isStop = change.action === "stop";
+        const detail = isStop ? "Stopped" : `${change.rate || "--"} ${change.unit}`;
+
+        return (
+          <g key={change.id}>
+            <line x1={change.x} y1={grid.top} x2={change.x} y2={grid.bottom} stroke="#c89200" strokeWidth="1.2" strokeDasharray="4 6" opacity="0.55" />
+            <rect x={change.x - 4} y={trackY - 4} width="8" height="8" rx="1" fill={isStop ? "#ffffff" : "#c89200"} stroke="#8a6400" strokeWidth="1.2" />
+            <text x={change.x + 5} y={trackY - 9 - (index % 3) * 11} fontSize="8.5" fontWeight="900" fill="#795600">
+              {change.timeLabel} · {detail}
+            </text>
+          </g>
+        );
+      })}
+      <text x={bands[0]?.x1 ?? changes[0].x} y={grid.bottom - 58} fontSize="9" fontWeight="900" fill="#795600">
+        OXYTOCIN
+      </text>
+    </g>
+  );
+}
+
+function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoints }) {
+  const styles = {
+    clinical: { fill: "#fce7f3", stroke: "#db8fba", label: "Clinical note" },
+    medication: { fill: "#fef3c7", stroke: "#d6a72c", label: "Medication" },
+    intervention: { fill: "#dbeafe", stroke: "#6aa4dc", label: "Intervention" },
+    outcome: { fill: "#fee2e2", stroke: "#d97878", label: "Outcome" }
+  };
+  const boxWidth = 205;
+  const lineHeight = 12;
+  const plottedPoints = [...dilationPoints, ...stationPoints];
+  const plottedSegments = [dilationPoints, stationPoints].flatMap((points) =>
+    points.slice(1).map((point, index) => [points[index], point])
+  );
+  const placedBoxes = [];
+  const pointInsideRect = (point, rect, padding = 12) =>
+    point.x >= rect.x - padding && point.x <= rect.x + rect.width + padding &&
+    point.y >= rect.y - padding && point.y <= rect.y + rect.height + padding;
+  const lineIntersectsRect = ([start, end], rect, padding = 8) => {
+    const left = rect.x - padding;
+    const right = rect.x + rect.width + padding;
+    const top = rect.y - padding;
+    const bottom = rect.y + rect.height + padding;
+    const steps = Math.max(4, Math.ceil(Math.hypot(end.x - start.x, end.y - start.y) / 16));
+
+    for (let step = 0; step <= steps; step += 1) {
+      const ratio = step / steps;
+      const x = start.x + (end.x - start.x) * ratio;
+      const y = start.y + (end.y - start.y) * ratio;
+
+      if (x >= left && x <= right && y >= top && y <= bottom) return true;
+    }
+
+    return false;
+  };
+  const boxesOverlap = (first, second, padding = 10) =>
+    first.x < second.x + second.width + padding &&
+    first.x + first.width + padding > second.x &&
+    first.y < second.y + second.height + padding &&
+    first.y + first.height + padding > second.y;
+
+  return annotations.slice(0, 12).map((annotation) => {
+    const style = styles[annotation.type] || styles.clinical;
+    const targetLabel = annotation.targetSeries === "station" ? "station" : "cervix";
+    const title = `${annotation.time} · ${style.label} · ${targetLabel}`;
+    const bodyLines = wrapText(annotation.text, 31);
+    const height = 31 + bodyLines.length * lineHeight + 12;
+    const gapX = 28;
+    const gapY = 24;
+    const rawCandidates = [
+      { x: annotation.x + gapX, y: annotation.anchorY - height - gapY },
+      { x: annotation.x - boxWidth - gapX, y: annotation.anchorY - height - gapY },
+      { x: annotation.x + gapX, y: annotation.anchorY + gapY },
+      { x: annotation.x - boxWidth - gapX, y: annotation.anchorY + gapY },
+      { x: annotation.x - boxWidth / 2, y: annotation.anchorY - height - 46 },
+      { x: annotation.x - boxWidth / 2, y: annotation.anchorY + 46 },
+      { x: grid.left + 10, y: grid.bottom - height - 12 },
+      { x: grid.right - boxWidth - 10, y: grid.top + 12 }
+    ];
+    const candidates = rawCandidates.map((candidate, order) => {
+      const rect = {
+        x: clamp(candidate.x, grid.left + 10, grid.right - boxWidth - 10),
+        y: clamp(candidate.y, grid.top + 10, grid.bottom - height - 10),
+        width: boxWidth,
+        height
+      };
+      const pointCollisions = plottedPoints.filter((point) => pointInsideRect(point, rect)).length;
+      const lineCollisions = plottedSegments.filter((segment) => lineIntersectsRect(segment, rect)).length;
+      const boxCollisions = placedBoxes.filter((box) => boxesOverlap(rect, box)).length;
+      const centerX = rect.x + rect.width / 2;
+      const centerY = rect.y + rect.height / 2;
+      const distance = Math.hypot(centerX - annotation.x, centerY - annotation.anchorY);
+
+      return {
+        ...rect,
+        score: pointCollisions * 10000 + lineCollisions * 2600 + boxCollisions * 16000 + distance + order * 4
+      };
+    });
+    const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
+    placedBoxes.push(placement);
+    const connectorX = clamp(annotation.x, placement.x + 12, placement.x + boxWidth - 12);
+    const connectorY = annotation.anchorY < placement.y
+      ? placement.y
+      : annotation.anchorY > placement.y + height
+        ? placement.y + height
+        : clamp(annotation.anchorY, placement.y + 12, placement.y + height - 12);
+
+    return (
+      <g key={annotation.id}>
+        <line
+          x1={connectorX}
+          y1={connectorY}
+          x2={annotation.x}
+          y2={annotation.anchorY}
+          stroke={style.stroke}
+          strokeWidth="1.5"
+          markerEnd="url(#annotation-arrow)"
+        />
+        <rect x={placement.x} y={placement.y} width={boxWidth} height={height} rx="5" fill={style.fill} stroke={style.stroke} strokeWidth="1.2" opacity="0.96" />
+        <text x={placement.x + 10} y={placement.y + 17} fontSize="10" fontWeight="900" fill="#28313d">
+          {title}
+        </text>
+        <text x={placement.x + 10} y={placement.y + 34} fontSize="10" fontWeight="700" fill="#3e4650">
+          {bodyLines.map((line, lineIndex) => (
+            <tspan key={`${line}-${lineIndex}`} x={placement.x + 10} dy={lineIndex === 0 ? 0 : lineHeight}>
               {line}
             </tspan>
           ))}
@@ -964,9 +1399,22 @@ function GuidePage() {
           </article>
 
           <article>
-            <h3>Notes</h3>
-            <p>Notes appear above the graph as horizontal callouts with the time included. Close notes are staggered to reduce overlap.</p>
+            <h3>Timeline Notes</h3>
+            <p>Short observation notes appear above the graph with their time. Use these for concise labels such as admission or medication started.</p>
           </article>
+
+          <article>
+            <h3>Chart Annotations</h3>
+            <p>Use Chart annotations for longer clinical narratives. Select the exact recorded observation and choose whether the callout connects to its cervical-dilation or station point. The app places the box away from plotted lines and markers.</p>
+          </article>
+
+          {SHOW_OXYTOCIN_FEATURE && (
+            <article>
+              <h3>Oxytocin Infusion</h3>
+              <p>Record every start, increase, decrease, stop, and resume event with its documented rate and unit. Amber shading shows only the periods when the infusion is active; rate-change labels appear along the bottom of the graph.</p>
+              <p>The tracker documents care but does not recommend a dose. Always follow the applicable facility protocol and monitoring requirements.</p>
+            </article>
+          )}
 
           <article>
             <h3>Long Labor</h3>
@@ -976,11 +1424,12 @@ function GuidePage() {
 
           <article>
             <h3>Export</h3>
-            <p>Use the header buttons to print, download SVG, or download PNG. Print is set up for landscape A4 or short bond paper.</p>
+            <p>Use Presentation PNG (16:9) for PowerPoint, Keynote, Google Slides, or Zoom. It enlarges the graph and removes the document-style header and footer. Use Full chart PNG or SVG when patient details and diagnosis must remain visible.</p>
             <ul>
               <li>Print opens the browser print dialog.</li>
+              <li>Presentation PNG is a 2560 × 1440 slide-ready image.</li>
               <li>SVG is best for crisp editing or archiving.</li>
-              <li>PNG is best for sharing as an image.</li>
+              <li>Full chart PNG is best for sharing the complete record.</li>
             </ul>
           </article>
         </div>
@@ -989,9 +1438,17 @@ function GuidePage() {
   );
 }
 
-function serializeSvg(chartNode) {
+function serializeSvg(chartNode, viewBoxOverride = null) {
   const clone = chartNode.cloneNode(true);
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+  if (viewBoxOverride) {
+    clone.setAttribute("viewBox", `${viewBoxOverride.x} ${viewBoxOverride.y} ${viewBoxOverride.width} ${viewBoxOverride.height}`);
+    clone.setAttribute("width", viewBoxOverride.width);
+    clone.setAttribute("height", viewBoxOverride.height);
+    clone.removeAttribute("style");
+  }
+
   return new XMLSerializer().serializeToString(clone);
 }
 
@@ -1011,6 +1468,8 @@ function download(filename, content, type) {
 export default function App() {
   const [state, setState] = useState(loadState);
   const [newObservation, setNewObservation] = useState(() => nextObservationDraft(state.observations, state.patient.startTime));
+  const [newAnnotation, setNewAnnotation] = useState(() => createAnnotationDraft({ time: state.patient.startTime }));
+  const [newOxytocinEvent, setNewOxytocinEvent] = useState(() => createOxytocinDraft({ time: state.patient.startTime }));
   const [showGuide, setShowGuide] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
@@ -1020,9 +1479,15 @@ export default function App() {
     () => sortedObservations(state.observations, state.patient.startTime),
     [state.observations, state.patient.startTime]
   );
+  const annotations = state.annotations || [];
+  const oxytocinEvents = state.oxytocinEvents || [];
+  const sortedInfusionEvents = useMemo(
+    () => sortedOxytocinEvents(oxytocinEvents, state.patient.startTime),
+    [oxytocinEvents, state.patient.startTime]
+  );
   const chartData = useMemo(
-    () => buildSvgData(state.patient, state.observations),
-    [state.patient, state.observations]
+    () => buildSvgData(state.patient, state.observations, annotations, oxytocinEvents),
+    [state.patient, state.observations, annotations, oxytocinEvents]
   );
   const summary = useMemo(
     () => clinicalSummary(state.observations, state.patient.startTime),
@@ -1032,6 +1497,7 @@ export default function App() {
   const newObservationWarnings = observationWarnings(newObservation, state.patient.startTime, state.observations).filter(
     (message) => message !== "Enter cervix, station, a note, or mark it as an event."
   );
+  const newOxytocinWarnings = oxytocinEventWarnings(newOxytocinEvent, oxytocinEvents, state.patient.startTime);
   const confirmationType = confirmation?.type;
   const confirmationObservation = confirmation?.observation;
   const confirmationObservationStatus = confirmationObservation ? pointStatus(confirmationObservation, state.patient.startTime) : null;
@@ -1108,6 +1574,73 @@ export default function App() {
     }));
   };
 
+  const updateNewAnnotation = (field, value) => {
+    setNewAnnotation((current) => ({ ...current, [field]: value }));
+  };
+
+  const selectAnnotationObservation = (observationId) => {
+    const observation = state.observations.find((item) => item.id === observationId);
+
+    if (!observation) {
+      setNewAnnotation((current) => ({ ...current, observationId: "" }));
+      return;
+    }
+
+    setNewAnnotation((current) => ({
+      ...current,
+      observationId,
+      time: observation.time,
+      dayOffset: normalizedDay(observation.dayOffset),
+      targetSeries: observation.dilation !== "" ? "dilation" : "station"
+    }));
+  };
+
+  const addAnnotation = () => {
+    if (!newAnnotation.observationId || !newAnnotation.time || !newAnnotation.text.trim()) return;
+
+    setState((current) => ({
+      ...current,
+      annotations: [...(current.annotations || []), createChartAnnotation(newAnnotation)]
+    }));
+    setNewAnnotation(createAnnotationDraft({
+      type: newAnnotation.type
+    }));
+  };
+
+  const deleteAnnotation = (id) => {
+    setState((current) => ({
+      ...current,
+      annotations: (current.annotations || []).filter((annotation) => annotation.id !== id)
+    }));
+  };
+
+  const updateNewOxytocinEvent = (field, value) => {
+    setNewOxytocinEvent((current) => ({ ...current, [field]: value }));
+  };
+
+  const addOxytocinEvent = () => {
+    if (newOxytocinWarnings.length > 0) return;
+
+    const event = createOxytocinEvent(newOxytocinEvent);
+    setState((current) => ({
+      ...current,
+      oxytocinEvents: [...(current.oxytocinEvents || []), event]
+    }));
+    setNewOxytocinEvent(createOxytocinDraft({
+      time: newOxytocinEvent.time,
+      dayOffset: newOxytocinEvent.dayOffset,
+      action: newOxytocinEvent.action === "stop" ? "resume" : "increase",
+      unit: newOxytocinEvent.unit
+    }));
+  };
+
+  const deleteOxytocinEvent = (id) => {
+    setState((current) => ({
+      ...current,
+      oxytocinEvents: (current.oxytocinEvents || []).filter((event) => event.id !== id)
+    }));
+  };
+
   const addObservation = () => {
     const observation = createObservation(newObservation);
     const nextObservations = [...state.observations, observation];
@@ -1136,7 +1669,8 @@ export default function App() {
   const confirmDeleteObservation = (id) => {
     setState((current) => ({
       ...current,
-      observations: current.observations.filter((observation) => observation.id !== id)
+      observations: current.observations.filter((observation) => observation.id !== id),
+      annotations: (current.annotations || []).filter((annotation) => annotation.observationId !== id)
     }));
   };
 
@@ -1148,6 +1682,8 @@ export default function App() {
     const sample = makeSampleState();
     setState(sample);
     setNewObservation(nextObservationDraft(sample.observations, sample.patient.startTime));
+    setNewAnnotation(createAnnotationDraft({ time: sample.patient.startTime }));
+    setNewOxytocinEvent(createOxytocinDraft({ time: sample.patient.startTime }));
   };
 
   const confirmResetPatient = () => {
@@ -1155,15 +1691,19 @@ export default function App() {
     setState((current) => ({
       ...current,
       patient: defaults.patient,
-      observations: []
+      observations: [],
+      annotations: [],
+      oxytocinEvents: []
     }));
     setNewObservation(nextObservationDraft([], defaults.patient.startTime));
+    setNewAnnotation(createAnnotationDraft({ time: defaults.patient.startTime }));
+    setNewOxytocinEvent(createOxytocinDraft({ time: defaults.patient.startTime }));
   };
 
   const resetPatient = () => {
     const defaults = makeDefaultState();
     const hasPatientInfo = PATIENT_FIELDS.some((field) => state.patient[field] !== defaults.patient[field]);
-    const hasObservations = state.observations.length > 0;
+    const hasObservations = state.observations.length > 0 || annotations.length > 0 || oxytocinEvents.length > 0;
 
     if (hasPatientInfo || hasObservations) {
       setConfirmation({ type: "reset-patient" });
@@ -1229,6 +1769,69 @@ export default function App() {
     image.src = url;
   };
 
+  const downloadPresentationPng = () => {
+    if (!chartRef.current) return;
+
+    const gridTop = Number(chartRef.current.dataset.presentationGridTop);
+    const gridBottom = Number(chartRef.current.dataset.presentationGridBottom);
+    const noteTops = [...chartRef.current.querySelectorAll('[data-presentation-note="true"]')]
+      .map((note) => Number(note.dataset.presentationNoteY))
+      .filter(Number.isFinite);
+    const cropTop = noteTops.length ? Math.max(0, Math.min(...noteTops) - 8) : Math.max(0, gridTop - 24);
+    const cropBottom = gridBottom + 78;
+    const presentationBox = {
+      x: Number(chartRef.current.dataset.presentationX),
+      y: cropTop,
+      width: Number(chartRef.current.dataset.presentationWidth),
+      height: cropBottom - cropTop
+    };
+
+    if (Object.values(presentationBox).some((value) => !Number.isFinite(value))) return;
+
+    const svgText = serializeSvg(chartRef.current, presentationBox);
+    const image = new Image();
+    const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      const slideWidth = 2560;
+      const slideHeight = 1440;
+      const margin = 32;
+      const scale = Math.min(
+        (slideWidth - margin * 2) / presentationBox.width,
+        (slideHeight - margin * 2) / presentationBox.height
+      );
+      const drawWidth = presentationBox.width * scale;
+      const drawHeight = presentationBox.height * scale;
+      const drawX = (slideWidth - drawWidth) / 2;
+      const drawY = (slideHeight - drawHeight) / 2;
+
+      canvas.width = slideWidth;
+      canvas.height = slideHeight;
+
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, slideWidth, slideHeight);
+      context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+      URL.revokeObjectURL(url);
+
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const pngUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = pngUrl;
+        link.download = "friedmans-curve-presentation-16x9.png";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(pngUrl);
+      }, "image/png");
+    };
+
+    image.src = url;
+  };
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -1262,9 +1865,13 @@ export default function App() {
                 </button>
                 {showExportMenu && (
                   <div className="export-options" role="menu" aria-label="Export chart format">
+                    <button type="button" role="menuitem" onClick={() => { downloadPresentationPng(); setShowExportMenu(false); }}>
+                      Presentation PNG (16:9)
+                      <span>Graph-focused for slides</span>
+                    </button>
                     <button type="button" role="menuitem" onClick={() => { downloadPng(); setShowExportMenu(false); }}>
-                      Download PNG
-                      <span>Best for sharing</span>
+                      Full chart PNG
+                      <span>Includes patient details</span>
                     </button>
                     <button type="button" role="menuitem" onClick={() => { downloadSvg(); setShowExportMenu(false); }}>
                       Download SVG
@@ -1344,6 +1951,12 @@ export default function App() {
                 <i className="swatch red" />
                 Station
               </span>
+              {SHOW_OXYTOCIN_FEATURE && (
+                <span>
+                  <i className="swatch amber" />
+                  Oxytocin active
+                </span>
+              )}
             </div>
             <div className="chart-status" aria-live="polite">
               {chartData.warningCount
@@ -1366,7 +1979,7 @@ export default function App() {
             </div>
           </div>
           <div className="chart-scroller">
-            <Chart patient={state.patient} observations={state.observations} chartRef={chartRef} />
+            <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} chartRef={chartRef} />
           </div>
         </section>
 
@@ -1406,7 +2019,7 @@ export default function App() {
                 <input value={newObservation.station} inputMode="decimal" placeholder="-5 to +5" type="number" min="-5" max="5" step="1" onChange={(event) => updateNewObservation("station", event.target.value)} />
               </label>
               <label className="entry-note">
-                Note
+                Timeline note
                 <input value={newObservation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateNewObservation("note", event.target.value)} />
               </label>
             </div>
@@ -1443,7 +2056,7 @@ export default function App() {
                     <th scope="col">Cervix</th>
                     <th scope="col">Station</th>
                     <th scope="col">Event marker</th>
-                    <th scope="col">Note</th>
+                    <th scope="col">Timeline note</th>
                     <th scope="col"></th>
                   </tr>
                 </thead>
@@ -1471,7 +2084,7 @@ export default function App() {
                         <td className="checkbox-cell" data-label="Event marker">
                           <input checked={Boolean(observation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateObservation(observation.id, "guideLine", event.target.checked)} />
                         </td>
-                        <td data-label="Note">
+                        <td data-label="Timeline note">
                           <input value={observation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateObservation(observation.id, "note", event.target.value)} />
                           {rowWarnings.length > 0 && (
                             <ul className="row-warning-messages">
@@ -1503,6 +2116,166 @@ export default function App() {
               Clear
             </button>
           </div>
+
+          <section className="annotation-section" aria-labelledby="annotation-heading">
+            <div className="annotation-heading">
+              <div>
+                <h3 id="annotation-heading">Chart annotations</h3>
+                <p>Long clinical narratives shown as callout boxes inside the graph.</p>
+              </div>
+              <span>{annotations.length} added</span>
+            </div>
+            <div className="annotation-form">
+              <label>
+                Attach to observation
+                <select value={newAnnotation.observationId} onChange={(event) => selectAnnotationObservation(event.target.value)}>
+                  <option value="">Select a plotted entry</option>
+                  {observations.map((observation) => (
+                    <option key={observation.id} value={observation.id}>
+                      {formatDisplayTime(observation.time)} · Day {normalizedDay(observation.dayOffset)} · Cervix {observation.dilation || "--"} · Station {formatStationValue(observation.station)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Connect to
+                <select value={newAnnotation.targetSeries} onChange={(event) => updateNewAnnotation("targetSeries", event.target.value)}>
+                  <option value="dilation">Cervical dilation point</option>
+                  <option value="station">Station point</option>
+                </select>
+              </label>
+              <label>
+                Type
+                <select value={newAnnotation.type} onChange={(event) => updateNewAnnotation("type", event.target.value)}>
+                  <option value="clinical">Clinical note</option>
+                  <option value="medication">Medication</option>
+                  <option value="intervention">Intervention</option>
+                  <option value="outcome">Outcome / decision</option>
+                </select>
+              </label>
+              <label className="annotation-text">
+                Annotation
+                <textarea value={newAnnotation.text} rows="3" placeholder="e.g., FHR pattern, contraction findings, or clinical action taken" onChange={(event) => updateNewAnnotation("text", event.target.value)} />
+              </label>
+              <button className="primary-button annotation-add" type="button" disabled={!newAnnotation.observationId || !newAnnotation.text.trim()} onClick={addAnnotation}>
+                Add annotation
+              </button>
+            </div>
+
+            {annotations.length > 0 && (
+              <div className="annotation-list" aria-label="Saved chart annotations">
+                {annotations.map((annotation) => {
+                  const linkedObservation = state.observations.find((observation) => observation.id === annotation.observationId);
+                  const displayTime = linkedObservation?.time || annotation.time;
+                  const displayDay = linkedObservation?.dayOffset ?? annotation.dayOffset;
+
+                  return (
+                    <article className={`annotation-item ${annotation.type}`} key={annotation.id}>
+                      <div>
+                        <strong>{formatDisplayTime(displayTime)} · Day {normalizedDay(displayDay)}</strong>
+                        <span>{annotation.type === "clinical" ? "Clinical note" : annotation.type === "outcome" ? "Outcome / decision" : `${annotation.type[0].toUpperCase()}${annotation.type.slice(1)}`} · {annotation.targetSeries === "station" ? "Station" : "Cervix"}</span>
+                        <p>{annotation.text}</p>
+                      </div>
+                      <button className="row-delete" type="button" title="Remove chart annotation" aria-label={`Remove annotation at ${formatDisplayTime(displayTime)}`} onClick={() => deleteAnnotation(annotation.id)}>
+                        X
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {SHOW_OXYTOCIN_FEATURE && (
+          <section className="oxytocin-section" aria-labelledby="oxytocin-heading">
+            <div className="annotation-heading">
+              <div>
+                <h3 id="oxytocin-heading">Oxytocin infusion</h3>
+                <p>Record starts, rate changes, stops, and resumptions. Follow your facility&apos;s protocol.</p>
+              </div>
+              <span>{sortedInfusionEvents.length} event{sortedInfusionEvents.length === 1 ? "" : "s"}</span>
+            </div>
+            <div className="oxytocin-form">
+              <label>
+                Time
+                <input value={newOxytocinEvent.time} type="time" onChange={(event) => updateNewOxytocinEvent("time", event.target.value)} />
+              </label>
+              <label>
+                Day
+                <input value={newOxytocinEvent.dayOffset} inputMode="numeric" type="number" min="0" step="1" onChange={(event) => updateNewOxytocinEvent("dayOffset", event.target.value)} />
+              </label>
+              <label>
+                Action
+                <select value={newOxytocinEvent.action} onChange={(event) => updateNewOxytocinEvent("action", event.target.value)}>
+                  <option value="start">Start</option>
+                  <option value="increase">Increase rate</option>
+                  <option value="decrease">Decrease rate</option>
+                  <option value="stop">Stop / pause</option>
+                  <option value="resume">Resume</option>
+                </select>
+              </label>
+              <label>
+                Rate
+                <input
+                  value={newOxytocinEvent.rate}
+                  disabled={newOxytocinEvent.action === "stop"}
+                  inputMode="decimal"
+                  placeholder={newOxytocinEvent.action === "stop" ? "Not required" : "e.g., 2"}
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  onChange={(event) => updateNewOxytocinEvent("rate", event.target.value)}
+                />
+              </label>
+              <label>
+                Unit
+                <select value={newOxytocinEvent.unit} disabled={newOxytocinEvent.action === "stop"} onChange={(event) => updateNewOxytocinEvent("unit", event.target.value)}>
+                  <option value="mU/min">mU/min</option>
+                  <option value="mL/hr">mL/hr</option>
+                  <option value="gtt/min">gtt/min</option>
+                </select>
+              </label>
+              <label className="oxytocin-note">
+                Remark (optional)
+                <input value={newOxytocinEvent.note} placeholder="e.g., Titrated per order" type="text" onChange={(event) => updateNewOxytocinEvent("note", event.target.value)} />
+              </label>
+              <button
+                className="primary-button oxytocin-add"
+                type="button"
+                disabled={newOxytocinWarnings.length > 0}
+                onClick={addOxytocinEvent}
+              >
+                Add infusion event
+              </button>
+            </div>
+            {newOxytocinWarnings.length > 0 && (
+              <ul className="validation-list" aria-live="polite">
+                {newOxytocinWarnings.map((message) => <li key={message}>{message}</li>)}
+              </ul>
+            )}
+
+            {sortedInfusionEvents.length > 0 && (
+              <div className="oxytocin-list" aria-label="Oxytocin infusion events">
+                {sortedInfusionEvents.map((event) => (
+                  <article className={`oxytocin-item ${event.action}`} key={event.id}>
+                    <div className="oxytocin-event-time">
+                      <strong>{formatDisplayTime(event.time)}</strong>
+                      <span>Day {normalizedDay(event.dayOffset)}</span>
+                    </div>
+                    <div>
+                      <strong>{oxytocinActionLabel(event.action)}</strong>
+                      <span>{event.action === "stop" ? "Infusion off" : `${event.rate} ${event.unit}`}</span>
+                      {event.note && <p>{event.note}</p>}
+                    </div>
+                    <button className="row-delete" type="button" title="Remove infusion event" aria-label={`Remove oxytocin event at ${formatDisplayTime(event.time)}`} onClick={() => deleteOxytocinEvent(event.id)}>
+                      X
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+          )}
         </aside>
       </main>
       )}
@@ -1522,8 +2295,8 @@ export default function App() {
                 {confirmationType === "clear-observations"
                   ? "This will remove all recorded observations from the chart. This cannot be undone."
                   : confirmationType === "delete-observation"
-                    ? "This will remove only the observation shown below. This cannot be undone."
-                    : "This will reset patient details and remove all observations from the chart. This cannot be undone."}
+                    ? "This will remove the observation shown below and any chart annotations attached to it. This cannot be undone."
+                    : "This will reset patient details and remove all observations, chart annotations, and oxytocin events. This cannot be undone."}
               </p>
               {confirmationType === "delete-observation" && (
                 <dl className="confirm-details" aria-label="Observation to delete">
