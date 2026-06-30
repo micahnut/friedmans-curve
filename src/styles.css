@@ -490,7 +490,8 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 
-td input {
+td input,
+td select {
   padding: 7px 8px;
   font-size: 0.9rem;
 }
@@ -511,7 +512,8 @@ td input {
   white-space: nowrap;
 }
 
-.row-warning input {
+.row-warning input,
+.row-warning select {
   border-color: #d58722;
   background: #fff7eb;
 }
@@ -1322,7 +1324,8 @@ td input {
   }
 
   input,
-  textarea {
+  textarea,
+  select {
     font-size: 1rem;
   }
 
