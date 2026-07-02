@@ -5,6 +5,11 @@ const STORAGE_KEY = "friedmans-curve-builder-v2";
 // Change this to true when the feature is ready to return to the UI.
 const SHOW_OXYTOCIN_FEATURE = false;
 const STATION_VALUES = Array.from({ length: 11 }, (_, index) => index - 5);
+const NOTE_LABEL_MAX_CHARS = 23;
+const NOTE_LABEL_MAX_WIDTH = 176;
+const NOTE_LABEL_LANE_LIMIT = 5;
+const NOTE_LABEL_LINE_HEIGHT = 12;
+const NOTE_LABEL_GAP = 8;
 const PATIENT_FIELDS = [
   "patientName",
   "patientAge",
@@ -72,6 +77,12 @@ function createAnnotationDraft(values = {}) {
     type: values.type || "clinical",
     text: values.text || ""
   };
+}
+
+function annotationTypeLabel(type) {
+  if (type === "clinical") return "Clinical note";
+  if (type === "outcome") return "Outcome / decision";
+  return type ? `${type[0].toUpperCase()}${type.slice(1)}` : "Clinical note";
 }
 
 function createOxytocinEvent(values = {}) {
@@ -477,10 +488,7 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
   const baseWidth = 1200;
   const left = 92;
   const noteObservations = observations.filter((observation) => observation.note.trim());
-  const top = noteObservations.length ? 260 : 226;
   const desiredGridHeight = 508;
-  const bottom = top + desiredGridHeight;
-  const height = bottom + 116;
   const hourWidth = 57;
   const maxObservationHour = Math.max(
     18,
@@ -499,15 +507,40 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
   );
   const maxHour = Math.max(18, maxObservationHour);
   const width = Math.max(baseWidth, left + maxHour * hourWidth + 80);
+  const horizontalGrid = {
+    left,
+    right: width - 80
+  };
+  const horizontalGridWidth = horizontalGrid.right - horizontalGrid.left;
+  const xForHour = (hour) => horizontalGrid.left + (clamp(hour, 0, maxHour) / maxHour) * horizontalGridWidth;
+  const noteLayoutMetrics = positionNoteLabels(
+    prepareNoteLabels(sortedObservations(observations, patient.startTime).flatMap((observation) => {
+      const status = pointStatus(observation, patient.startTime);
+
+      if (!status.validTime || !status.validDilation || !status.validStation || status.hour === null || !observation.note.trim()) {
+        return [];
+      }
+
+      return [{
+        x: xForHour(status.hour),
+        time: formatDisplayTime(observation.time),
+        text: observation.note.trim()
+      }];
+    })),
+    horizontalGrid
+  );
+  const top = noteObservations.length
+    ? Math.max(226, 154 + noteLayoutMetrics.usedLaneCount * noteLayoutMetrics.laneStride)
+    : 226;
+  const bottom = top + desiredGridHeight;
+  const height = bottom + 116;
   const grid = {
     left,
     top,
-    right: width - 80,
+    right: horizontalGrid.right,
     bottom
   };
-  const gridWidth = grid.right - grid.left;
   const gridHeight = grid.bottom - grid.top;
-  const xForHour = (hour) => grid.left + (clamp(hour, 0, maxHour) / maxHour) * gridWidth;
   const yForDilation = (dilation) => grid.bottom - (clamp(dilation, 0, 10) / 10) * gridHeight;
   const yForStation = (station) => grid.top + ((clamp(station, -5, 5) + 5) / 10) * gridHeight;
   const dilationPoints = [];
@@ -711,6 +744,58 @@ function wrapText(value, maxChars) {
 
   if (line) lines.push(line);
   return lines.length ? lines : [""];
+}
+
+function prepareNoteLabels(notes) {
+  const charWidth = 5.8;
+
+  return notes.slice(0, 16).map((note) => {
+    const labelLines = wrapText(`${note.time} · ${note.text}`, NOTE_LABEL_MAX_CHARS);
+
+    return {
+      ...note,
+      width: Math.min(NOTE_LABEL_MAX_WIDTH, Math.max(86, Math.max(...labelLines.map((line) => line.length)) * charWidth + 18)),
+      height: labelLines.length * NOTE_LABEL_LINE_HEIGHT + 12,
+      labelLines
+    };
+  });
+}
+
+function positionNoteLabels(preparedNotes, grid) {
+  const laneCount = Math.min(NOTE_LABEL_LANE_LIMIT, Math.max(1, preparedNotes.length));
+  const laneStride = Math.max(...preparedNotes.map((note) => note.height), 0) + NOTE_LABEL_GAP;
+  const lanes = Array.from({ length: laneCount }, () => ({ endX: grid.left - NOTE_LABEL_GAP }));
+  let highestUsedLane = -1;
+  const layouts = preparedNotes.map((note) => {
+    const labelX = Math.max(
+      grid.left + 4,
+      Math.min(note.x - note.width / 2, grid.right - note.width - 4)
+    );
+    const candidates = lanes.map((lane, laneIndex) => ({
+      laneIndex,
+      fits: labelX >= lane.endX + NOTE_LABEL_GAP
+    }));
+    const placement = candidates.find((candidate) => candidate.fits)
+      || candidates.reduce((best, candidate) => (
+        lanes[candidate.laneIndex].endX < lanes[best.laneIndex].endX ? candidate : best
+      ));
+    const laneIndex = placement.laneIndex;
+
+    lanes[laneIndex].endX = labelX + note.width;
+    highestUsedLane = Math.max(highestUsedLane, laneIndex);
+
+    return {
+      ...note,
+      labelX,
+      laneIndex
+    };
+  });
+
+  return {
+    layouts,
+    laneStride,
+    usedLaneCount: highestUsedLane + 1
+  };
 }
 
 function wrapHeaderValue(value, maxChars, maxLines = 5) {
@@ -1000,54 +1085,10 @@ function Chart({ patient, observations, annotations, oxytocinEvents, chartRef })
 }
 
 function NoteLabels({ notes, grid }) {
-  const labelGap = 8;
-  const charWidth = 5.8;
-  const lineHeight = 12;
-  const preparedNotes = notes
-    .slice(0, 16)
-    .map((note) => {
-      const labelText = `${note.time} · ${note.text}`;
-      const labelLines = wrapText(labelText, 28);
-      const width = Math.min(210, Math.max(86, Math.max(...labelLines.map((line) => line.length)) * charWidth + 18));
-      const height = labelLines.length * lineHeight + 12;
-
-      return {
-        ...note,
-        width,
-        height,
-        labelLines
-      };
-    });
-  const lanes = Array.from({ length: 3 }, (_, index) => ({
-    bottomY: grid.top - 8 - index * 38,
-    endX: grid.left
-  }));
-  const layouts = preparedNotes
-    .map((note) => {
-      const naturalX = note.x - note.width / 2;
-      const candidates = lanes.map((lane, laneIndex) => {
-        const x = Math.max(Math.max(grid.left + 4, naturalX), lane.endX + labelGap);
-        return {
-          laneIndex,
-          x,
-          fits: x + note.width <= grid.right - 4
-        };
-      });
-      const placement = candidates.find((candidate) => candidate.fits) || candidates.reduce((best, candidate) => (candidate.x < best.x ? candidate : best));
-      const lane = lanes[placement.laneIndex];
-      const labelX = Math.min(placement.x, Math.max(grid.left + 4, grid.right - note.width - 4));
-
-      lane.endX = labelX + note.width;
-
-      return {
-        ...note,
-        labelX,
-        y: lane.bottomY - note.height
-      };
-    });
+  const { layouts, laneStride } = positionNoteLabels(prepareNoteLabels(notes), grid);
 
   return layouts.map((note) => {
-    const y = note.y;
+    const y = grid.top - NOTE_LABEL_GAP - note.laneIndex * laneStride - note.height;
     const connectorY = y + note.height;
 
     return (
@@ -1056,7 +1097,7 @@ function NoteLabels({ notes, grid }) {
         <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill="#ffffff" stroke="#d7dce3" strokeWidth="1" opacity="0.96" />
         <text x={note.labelX + 9} y={y + 15} fontSize="10" fontWeight="800" fill="#3e4650">
           {note.labelLines.map((line, index) => (
-            <tspan key={`${line}-${index}`} x={note.labelX + 9} dy={index === 0 ? 0 : lineHeight}>
+            <tspan key={`${line}-${index}`} x={note.labelX + 9} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
               {line}
             </tspan>
           ))}
@@ -1514,6 +1555,10 @@ export default function App() {
   const newOxytocinWarnings = oxytocinEventWarnings(newOxytocinEvent, oxytocinEvents, state.patient.startTime);
   const confirmationType = confirmation?.type;
   const confirmationObservation = confirmation?.observation;
+  const confirmationAnnotation = confirmation?.annotation;
+  const confirmationAnnotationObservation = confirmationAnnotation
+    ? state.observations.find((observation) => observation.id === confirmationAnnotation.observationId)
+    : null;
   const confirmationObservationStatus = confirmationObservation ? pointStatus(confirmationObservation, state.patient.startTime) : null;
   const confirmationObservationDetails = confirmationObservation
     ? [
@@ -1524,6 +1569,15 @@ export default function App() {
         ["Station", formatStationValue(confirmationObservation.station)],
         ["Event marker", confirmationObservation.guideLine ? "Yes" : "No"],
         ["Note", confirmationObservation.note.trim() || "--"]
+      ]
+    : [];
+  const confirmationAnnotationDetails = confirmationAnnotation
+    ? [
+        ["Time", formatDisplayTime(confirmationAnnotationObservation?.time || confirmationAnnotation.time)],
+        ["Day", normalizedDay(confirmationAnnotationObservation?.dayOffset ?? confirmationAnnotation.dayOffset)],
+        ["Type", annotationTypeLabel(confirmationAnnotation.type)],
+        ["Connected to", confirmationAnnotation.targetSeries === "station" ? "Station" : "Cervix"],
+        ["Annotation", confirmationAnnotation.text.trim() || "--"]
       ]
     : [];
 
@@ -1621,11 +1675,15 @@ export default function App() {
     }));
   };
 
-  const deleteAnnotation = (id) => {
+  const confirmDeleteAnnotation = (id) => {
     setState((current) => ({
       ...current,
       annotations: (current.annotations || []).filter((annotation) => annotation.id !== id)
     }));
+  };
+
+  const deleteAnnotation = (annotation) => {
+    setConfirmation({ type: "delete-annotation", annotation: { ...annotation } });
   };
 
   const updateNewOxytocinEvent = (field, value) => {
@@ -1738,6 +1796,10 @@ export default function App() {
 
     if (confirmationType === "delete-observation" && confirmationObservation?.id) {
       confirmDeleteObservation(confirmationObservation.id);
+    }
+
+    if (confirmationType === "delete-annotation" && confirmationAnnotation?.id) {
+      confirmDeleteAnnotation(confirmationAnnotation.id);
     }
 
     setConfirmation(null);
@@ -2191,10 +2253,10 @@ export default function App() {
                     <article className={`annotation-item ${annotation.type}`} key={annotation.id}>
                       <div>
                         <strong>{formatDisplayTime(displayTime)} · Day {normalizedDay(displayDay)}</strong>
-                        <span>{annotation.type === "clinical" ? "Clinical note" : annotation.type === "outcome" ? "Outcome / decision" : `${annotation.type[0].toUpperCase()}${annotation.type.slice(1)}`} · {annotation.targetSeries === "station" ? "Station" : "Cervix"}</span>
+                        <span>{annotationTypeLabel(annotation.type)} · {annotation.targetSeries === "station" ? "Station" : "Cervix"}</span>
                         <p>{annotation.text}</p>
                       </div>
-                      <button className="row-delete" type="button" title="Remove chart annotation" aria-label={`Remove annotation at ${formatDisplayTime(displayTime)}`} onClick={() => deleteAnnotation(annotation.id)}>
+                      <button className="row-delete" type="button" title="Remove chart annotation" aria-label={`Remove annotation at ${formatDisplayTime(displayTime)}`} onClick={() => deleteAnnotation(annotation)}>
                         X
                       </button>
                     </article>
@@ -2307,6 +2369,8 @@ export default function App() {
                   ? "Clear observations?"
                   : confirmationType === "delete-observation"
                     ? "Delete this observation?"
+                    : confirmationType === "delete-annotation"
+                      ? "Delete this annotation?"
                     : "Reset patient details?"}
               </h2>
               <p id="confirm-message">
@@ -2314,11 +2378,23 @@ export default function App() {
                   ? "This will remove all recorded observations from the chart. This cannot be undone."
                   : confirmationType === "delete-observation"
                     ? "This will remove the observation shown below and any chart annotations attached to it. This cannot be undone."
+                    : confirmationType === "delete-annotation"
+                      ? "This will remove the chart annotation shown below. This cannot be undone."
                     : "This will reset patient details and remove all observations, chart annotations, and oxytocin events. This cannot be undone."}
               </p>
               {confirmationType === "delete-observation" && (
                 <dl className="confirm-details" aria-label="Observation to delete">
                   {confirmationObservationDetails.map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {confirmationType === "delete-annotation" && (
+                <dl className="confirm-details" aria-label="Annotation to delete">
+                  {confirmationAnnotationDetails.map(([label, value]) => (
                     <div key={label}>
                       <dt>{label}</dt>
                       <dd>{value}</dd>
@@ -2336,6 +2412,8 @@ export default function App() {
                   ? "Clear observations"
                   : confirmationType === "delete-observation"
                     ? "Delete observation"
+                    : confirmationType === "delete-annotation"
+                      ? "Delete annotation"
                     : "Reset all"}
               </button>
             </div>
