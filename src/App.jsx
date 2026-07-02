@@ -4,6 +4,7 @@ const STORAGE_KEY = "friedmans-curve-builder-v2";
 // Oxytocin infusion tracking is intentionally hidden for now.
 // Change this to true when the feature is ready to return to the UI.
 const SHOW_OXYTOCIN_FEATURE = false;
+const STATION_VALUES = Array.from({ length: 11 }, (_, index) => index - 5);
 const PATIENT_FIELDS = [
   "patientName",
   "patientAge",
@@ -274,6 +275,19 @@ function formatStationValue(value) {
   if (station === null) return "--";
   if (station > 0) return `+${station}`;
   return String(station);
+}
+
+function StationSelect({ value, onChange, ariaLabel = "Station" }) {
+  return (
+    <select className="station-select" value={value === "" ? "" : String(value)} aria-label={ariaLabel} onChange={(event) => onChange(event.target.value)}>
+      <option value="">Select station</option>
+      {STATION_VALUES.map((station) => (
+        <option key={station} value={String(station)}>
+          {station > 0 ? `+${station}` : station}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 function numberOrNull(value) {
@@ -2016,7 +2030,7 @@ export default function App() {
               </label>
               <label className="entry-station">
                 Station
-                <input value={newObservation.station} inputMode="decimal" placeholder="-5 to +5" type="number" min="-5" max="5" step="1" onChange={(event) => updateNewObservation("station", event.target.value)} />
+                <StationSelect value={newObservation.station} onChange={(value) => updateNewObservation("station", value)} />
               </label>
               <label className="entry-note">
                 Timeline note
@@ -2079,7 +2093,11 @@ export default function App() {
                           <input value={observation.dilation} inputMode="decimal" placeholder="0–10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateObservation(observation.id, "dilation", event.target.value)} />
                         </td>
                         <td data-label="Station">
-                          <input value={observation.station} inputMode="decimal" placeholder="-5 to +5" type="number" min="-5" max="5" step="1" onChange={(event) => updateObservation(observation.id, "station", event.target.value)} />
+                          <StationSelect
+                            value={observation.station}
+                            ariaLabel={`Station at ${formatDisplayTime(observation.time)}`}
+                            onChange={(value) => updateObservation(observation.id, "station", value)}
+                          />
                         </td>
                         <td className="checkbox-cell" data-label="Event marker">
                           <input checked={Boolean(observation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateObservation(observation.id, "guideLine", event.target.checked)} />
