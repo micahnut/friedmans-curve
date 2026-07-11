@@ -12,6 +12,14 @@
   --action-ink: #364152;
   --action-hover-bg: #e9edf2;
   --action-hover-border: #c5ccd6;
+  --edit-bg: #fff7df;
+  --edit-border: #e5bf58;
+  --edit-ink: #7a5200;
+  --edit-hover-bg: #ffefbd;
+  --delete-bg: #fff0f1;
+  --delete-border: #f0a9b4;
+  --delete-ink: #9f1239;
+  --delete-hover-bg: #ffe3e6;
   --observation-card-bg: #f3f8ff;
   --observation-card-border: #bcd0ea;
   --observation-card-hover: #eaf3ff;
@@ -225,6 +233,17 @@ h3 {
   transform: none;
 }
 
+.desktop-rail .rail-add-button {
+  background: var(--ink);
+  color: #fff;
+}
+
+.desktop-rail .rail-add-button:hover,
+.desktop-rail .rail-add-button:focus-visible {
+  background: #11161d;
+  color: #fff;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -240,6 +259,7 @@ h3 {
 .chart-panel {
   grid-column: 1;
   grid-row: 3;
+  min-width: 0;
 }
 
 .data-panel {
@@ -497,6 +517,7 @@ input[type="checkbox"] {
 .chart-scroller {
   display: flex;
   justify-content: center;
+  min-height: 0;
   overflow: visible;
   background: #fbfcfd;
   cursor: zoom-in;
@@ -524,6 +545,28 @@ input[type="checkbox"] {
 .chart-point {
   cursor: pointer;
   outline: none;
+}
+
+.active-chart-point {
+  animation: activeChartPointPulse 1.35s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(17, 24, 39, 0.34));
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.active-chart-point circle {
+  stroke-width: 5;
+}
+
+.active-chart-point line {
+  stroke-width: 5;
+}
+
+.active-chart-callout {
+  animation: activeChartCalloutPulse 1.45s ease-in-out infinite;
+  filter: drop-shadow(0 0 7px rgba(122, 82, 0, 0.26));
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .chart-point:focus circle,
@@ -559,6 +602,32 @@ input[type="checkbox"] {
 
 .chart-tooltip strong {
   font-size: 0.86rem;
+}
+
+@keyframes activeChartPointPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.58;
+    transform: scale(1.18);
+  }
+}
+
+@keyframes activeChartCalloutPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.72;
+    transform: scale(1.035);
+  }
 }
 
 .table-wrap {
@@ -667,16 +736,16 @@ td select {
   width: 34px;
   height: 34px;
   border-radius: 6px;
-  border: 1px solid var(--action-border);
-  background: var(--action-bg);
-  color: var(--action-ink);
+  border: 1px solid var(--delete-border);
+  background: var(--delete-bg);
+  color: var(--delete-ink);
   font-weight: 900;
 }
 
 .row-delete:hover {
-  border-color: var(--action-hover-border);
-  background: var(--action-hover-bg);
-  color: #202936;
+  border-color: #e56b7c;
+  background: var(--delete-hover-bg);
+  color: #881337;
 }
 
 .row-delete svg {
@@ -1376,18 +1445,33 @@ td select {
   display: inline-grid;
   place-items: center;
   padding: 0 10px;
-  border: 1px solid var(--action-border);
+  border: 1px solid var(--edit-border);
   border-radius: 6px;
-  background: var(--action-bg);
-  color: var(--action-ink);
+  background: var(--edit-bg);
+  color: var(--edit-ink);
   font-size: 0.78rem;
   font-weight: 900;
   text-align: center;
 }
 
+.observation-toggle:hover,
+.observation-toggle:focus-visible {
+  border-color: #d19b27;
+  background: var(--edit-hover-bg);
+  color: #684000;
+  transform: none;
+}
+
 .observation-toggle.close-toggle {
   border-color: var(--action-border);
   background: var(--action-bg);
+  color: var(--action-ink);
+}
+
+.observation-toggle.close-toggle:hover,
+.observation-toggle.close-toggle:focus-visible {
+  border-color: var(--action-hover-border);
+  background: var(--action-hover-bg);
   color: var(--action-ink);
 }
 
@@ -1545,14 +1629,28 @@ td select {
 
 .annotation-edit-toggle {
   min-height: 34px;
-  border: 1px solid var(--action-border);
-  background: var(--action-bg);
-  color: var(--action-ink);
+  border: 1px solid var(--edit-border);
+  background: var(--edit-bg);
+  color: var(--edit-ink);
+}
+
+.annotation-edit-toggle:hover,
+.annotation-edit-toggle:focus-visible {
+  border-color: #d19b27;
+  background: var(--edit-hover-bg);
+  color: #684000;
 }
 
 .annotation-edit-toggle.close-toggle {
   border-color: var(--action-border);
   background: var(--action-bg);
+  color: var(--action-ink);
+}
+
+.annotation-edit-toggle.close-toggle:hover,
+.annotation-edit-toggle.close-toggle:focus-visible {
+  border-color: var(--action-hover-border);
+  background: var(--action-hover-bg);
   color: var(--action-ink);
 }
 
@@ -1730,6 +1828,66 @@ td select {
   margin-top: 5px;
 }
 
+@media (min-width: 1280px) {
+  .app-shell {
+    max-width: 1600px;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(720px, 1fr) minmax(460px, 520px);
+    align-items: start;
+  }
+
+  .patient-panel {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .data-panel {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .chart-panel {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    position: sticky;
+    top: 16px;
+    z-index: 8;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    max-height: calc(100vh - 32px);
+    overflow: hidden;
+  }
+
+  .chart-panel .summary-tile-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .chart-panel .summary-tile {
+    min-height: 46px;
+    padding: 7px 8px;
+  }
+
+  .chart-panel .summary-tile strong {
+    font-size: 0.88rem;
+  }
+
+  .chart-panel .chart-scroller {
+    align-items: start;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .chart-panel .chart-interactive {
+    width: 100%;
+  }
+
+  .annotation-form {
+    grid-template-columns: minmax(0, 1.15fr) minmax(150px, 0.72fr) minmax(145px, 0.68fr);
+  }
+}
+
 @media (max-width: 1366px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -1802,7 +1960,185 @@ td select {
 
 }
 
+@media (min-width: 1280px) and (max-width: 1366px) {
+  .workspace {
+    grid-template-columns: minmax(660px, 1fr) minmax(420px, 460px);
+  }
+
+  .patient-panel {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .data-panel {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .chart-panel {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+@media (max-width: 1279px) {
+  body {
+    padding-bottom: 76px;
+  }
+
+  .desktop-layout {
+    display: block;
+  }
+
+  .desktop-rail {
+    display: none;
+  }
+
+  .desktop-entry,
+  .inline-annotation-form {
+    display: none;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-panel {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .chart-panel {
+    grid-column: 1;
+    grid-row: 2;
+    position: static;
+    top: auto;
+    z-index: auto;
+  }
+
+  .data-panel {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    z-index: 35;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -10px 28px rgba(34, 41, 55, 0.12);
+    backdrop-filter: blur(10px);
+  }
+
+  .mobile-bottom-nav button {
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+    border-radius: 8px;
+    background: #eef1f5;
+    color: #29313c;
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .mobile-bottom-nav button:hover {
+    transform: none;
+  }
+
+  .mobile-bottom-nav .mobile-add-button {
+    background: var(--ink);
+    color: #fff;
+  }
+
+  .app-toast {
+    bottom: calc(82px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-entry-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    display: grid;
+    align-items: end;
+    background: rgba(15, 23, 42, 0.42);
+  }
+
+  .mobile-entry-sheet {
+    display: grid;
+    gap: 10px;
+    width: min(760px, 100vw);
+    max-height: min(88vh, 760px);
+    justify-self: center;
+    padding: 14px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: 14px 14px 0 0;
+    background: var(--surface);
+    box-shadow: 0 -18px 56px rgba(15, 23, 42, 0.24);
+    overflow-y: auto;
+  }
+
+  .mobile-sheet-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .mobile-sheet-heading h2 {
+    font-size: 1.05rem;
+  }
+
+  .mobile-entry-card {
+    margin-bottom: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .mobile-entry-card .entry-heading {
+    display: none;
+  }
+
+  .mobile-annotation-form {
+    display: grid;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+}
+
 @media (max-width: 1024px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-panel {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .chart-panel {
+    grid-column: 1;
+    grid-row: 2;
+    position: static;
+    top: auto;
+    z-index: auto;
+  }
+
+  .data-panel {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
   .annotation-form {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1965,6 +2301,9 @@ td select {
 
   .chart-panel {
     grid-row: 2;
+    position: static;
+    top: auto;
+    z-index: auto;
   }
 
   .patient-grid {
@@ -2102,23 +2441,24 @@ td select {
 
   .observation-summary-row {
     grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 6px;
+    gap: 5px;
+    padding: 5px;
   }
 
   .observation-summary {
     grid-template-columns: minmax(0, 0.78fr) minmax(148px, 1fr);
-    gap: 8px;
-    padding: 8px;
+    gap: 7px;
+    padding: 7px;
   }
 
   .observation-note-preview {
     grid-column: 1 / -1;
+    padding: 6px 7px;
   }
 
   .observation-card-actions {
     justify-content: flex-end;
-    padding: 0 2px 2px;
+    padding: 0 2px 1px;
   }
 
   .observation-toggle {
@@ -2295,10 +2635,41 @@ td select {
   .annotation-item,
   .annotation-item.editing {
     grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 9px;
+    border-left-width: 4px;
   }
 
   .annotation-item-actions {
     justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .annotation-item-body {
+    gap: 6px;
+  }
+
+  .annotation-item strong {
+    font-size: 0.78rem;
+  }
+
+  .annotation-item span {
+    font-size: 0.62rem;
+  }
+
+  .annotation-item p {
+    display: -webkit-box;
+    margin-top: 4px;
+    overflow: hidden;
+    font-size: 0.76rem;
+    line-height: 1.3;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .annotation-item.editing p {
+    display: block;
+    overflow: visible;
   }
 
   .annotation-edit-form {
@@ -2380,12 +2751,12 @@ td select {
 
   .observation-summary {
     grid-template-columns: minmax(0, 0.72fr) minmax(128px, 1fr);
-    gap: 7px;
-    padding: 7px;
+    gap: 5px;
+    padding: 6px;
   }
 
   .observation-time {
-    font-size: 0.9rem;
+    font-size: 0.82rem;
   }
 
   .observation-time small,
@@ -2395,22 +2766,42 @@ td select {
   }
 
   .observation-metrics {
-    gap: 6px;
+    gap: 5px;
   }
 
   .observation-metric {
-    min-height: 40px;
-    padding: 6px 7px;
+    min-height: 35px;
+    padding: 5px 6px;
   }
 
   .observation-metric strong,
   .observation-note-preview strong {
-    font-size: 0.82rem;
+    font-size: 0.76rem;
+  }
+
+  .observation-note-preview {
+    min-height: 32px;
+    padding: 5px 6px;
   }
 
   .observation-toggle,
   .row-delete {
-    min-height: 32px;
+    min-height: 30px;
+  }
+
+  .row-delete {
+    width: 30px;
+    height: 30px;
+  }
+
+  .row-delete svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .observation-toggle {
+    min-width: 52px;
+    font-size: 0.72rem;
   }
 
   .observation-toggle {
