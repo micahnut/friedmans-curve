@@ -1316,9 +1316,6 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
           </text>
         </>
       )}
-      <text x="18" y={height - 10} textAnchor="start" fontSize="8" fontWeight="700" fill="#c7cdd5">
-        (c) chu im - batch adamantos
-      </text>
       </svg>
       {hoveredPoint && (
         <div
@@ -1682,6 +1679,44 @@ function Series({ points, color, marker, activeObservationId, onPointEnter, onPo
 }
 
 function Icon({ name }) {
+  if (name === "sample") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M12 3l1.9 4.8L19 10l-5.1 2.2L12 17l-1.9-4.8L5 10l5.1-2.2z" />
+        <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />
+      </svg>
+    );
+  }
+
+  if (name === "save") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M5 3h12l2 2v16H5z" />
+        <path d="M8 3v6h8V3" />
+        <path d="M8 15h8v6H8z" />
+      </svg>
+    );
+  }
+
+  if (name === "restore") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M4 12a8 8 0 1 0 2.3-5.7" />
+        <path d="M4 4v6h6" />
+        <path d="M12 8v5l3 2" />
+      </svg>
+    );
+  }
+
+  if (name === "reset") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M21 12a9 9 0 1 1-2.6-6.4" />
+        <path d="M21 4v6h-6" />
+      </svg>
+    );
+  }
+
   if (name === "info") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -1935,6 +1970,7 @@ export default function App() {
   const [notification, setNotification] = useState(null);
   const [expandedObservationId, setExpandedObservationId] = useState(null);
   const [editingAnnotationId, setEditingAnnotationId] = useState(null);
+  const [activeMobileNav, setActiveMobileNav] = useState("chart");
   const [newObservationAttempted, setNewObservationAttempted] = useState(false);
   const [useSheetForms, setUseSheetForms] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia("(max-width: 1279px)").matches : false
@@ -2007,10 +2043,12 @@ export default function App() {
     : [];
   const confirmationTitle = confirmationType === "clear-observations"
     ? "Clear observations?"
-    : confirmationType === "delete-observation"
-      ? "Delete this observation?"
-      : confirmationType === "delete-annotation"
-        ? "Delete this annotation?"
+    : confirmationType === "clear-annotations"
+      ? "Clear annotations?"
+      : confirmationType === "delete-observation"
+        ? "Delete this observation?"
+        : confirmationType === "delete-annotation"
+          ? "Delete this annotation?"
       : confirmationType === "save-chart-limit"
         ? "Save chart and remove oldest?"
       : confirmationType === "restore-chart"
@@ -2020,10 +2058,12 @@ export default function App() {
       : "Reset patient details?";
   const confirmationMessage = confirmationType === "clear-observations"
     ? "This will remove all recorded observations and chart annotations. This cannot be undone."
-    : confirmationType === "delete-observation"
-      ? "This will remove the observation shown below and any chart annotations attached to it. This cannot be undone."
-      : confirmationType === "delete-annotation"
-        ? "This will remove the chart annotation shown below. This cannot be undone."
+    : confirmationType === "clear-annotations"
+      ? "This will remove all chart annotation callouts. Recorded observations will stay on the chart."
+      : confirmationType === "delete-observation"
+        ? "This will remove the observation shown below and any chart annotations attached to it. This cannot be undone."
+        : confirmationType === "delete-annotation"
+          ? "This will remove the chart annotation shown below. This cannot be undone."
       : confirmationType === "save-chart-limit"
         ? `You already have ${MAX_SAVED_CHARTS} saved charts. Saving this chart will remove the oldest saved chart shown below.`
       : confirmationType === "restore-chart"
@@ -2033,10 +2073,12 @@ export default function App() {
       : "This will reset patient details and remove all observations, chart annotations, and oxytocin events. This cannot be undone.";
   const confirmationActionLabel = confirmationType === "clear-observations"
     ? "Clear observations"
-    : confirmationType === "delete-observation"
-      ? "Delete observation"
-      : confirmationType === "delete-annotation"
-        ? "Delete annotation"
+    : confirmationType === "clear-annotations"
+      ? "Clear annotations"
+      : confirmationType === "delete-observation"
+        ? "Delete observation"
+        : confirmationType === "delete-annotation"
+          ? "Delete annotation"
       : confirmationType === "save-chart-limit"
         ? "Save and remove oldest"
       : confirmationType === "restore-chart"
@@ -2044,7 +2086,7 @@ export default function App() {
       : confirmationType === "delete-saved-chart"
         ? "Delete saved chart"
       : "Reset all";
-  const confirmationIsDestructive = ["clear-observations", "delete-observation", "delete-annotation", "delete-saved-chart", "reset-patient"].includes(confirmationType);
+  const confirmationIsDestructive = ["clear-observations", "clear-annotations", "delete-observation", "delete-annotation", "delete-saved-chart", "reset-patient"].includes(confirmationType);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -2269,6 +2311,26 @@ export default function App() {
     setNewAnnotation(createAnnotationDraft({ type: newAnnotation.type, time: state.patient.startTime }));
   };
 
+  const toggleObservationEditor = (id, isExpanded) => {
+    if (isExpanded) {
+      setExpandedObservationId(null);
+      notify("Observation edit saved.");
+      return;
+    }
+
+    setExpandedObservationId(id);
+  };
+
+  const toggleAnnotationEditor = (id, isEditing) => {
+    if (isEditing) {
+      setEditingAnnotationId(null);
+      notify("Annotation edit saved.");
+      return;
+    }
+
+    setEditingAnnotationId(id);
+  };
+
   const confirmDeleteAnnotation = (id) => {
     setState((current) => ({
       ...current,
@@ -2349,6 +2411,17 @@ export default function App() {
   const clearObservations = () => {
     if (!state.observations.length && !annotations.length) return;
     setConfirmation({ type: "clear-observations" });
+  };
+
+  const confirmClearAnnotations = () => {
+    setState((current) => ({ ...current, annotations: [] }));
+    setEditingAnnotationId(null);
+    notify("Annotations cleared.");
+  };
+
+  const clearAnnotations = () => {
+    if (!annotations.length) return;
+    setConfirmation({ type: "clear-annotations" });
   };
 
   const confirmDeleteObservation = (id) => {
@@ -2462,6 +2535,10 @@ export default function App() {
   const confirmPendingAction = () => {
     if (confirmationType === "clear-observations") {
       confirmClearObservations();
+    }
+
+    if (confirmationType === "clear-annotations") {
+      confirmClearAnnotations();
     }
 
     if (confirmationType === "reset-patient") {
@@ -2603,14 +2680,21 @@ export default function App() {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const jumpToSection = (id, navKey) => {
+    setActiveMobileNav(navKey);
+    scrollToMobileSection(id);
+  };
+
   const openMobileEntrySheet = () => {
     setShowMobileAnnotationSheet(false);
     setShowMobileEntrySheet(true);
+    setActiveMobileNav("add");
   };
 
   const openMobileAnnotationSheet = () => {
     setShowMobileEntrySheet(false);
     setShowMobileAnnotationSheet(true);
+    setActiveMobileNav("annotate");
   };
 
   const openAddEntry = () => {
@@ -2778,9 +2862,11 @@ export default function App() {
             {!showGuide && (
               <div className="title-utility-actions">
                 <button className="ghost-button compact-title-button" type="button" onClick={loadSample}>
+                  <Icon name="sample" />
                   Load Sample
                 </button>
                 <button className="ghost-button compact-title-button" type="button" onClick={saveCurrentChart}>
+                  <Icon name="save" />
                   Save
                 </button>
                 <div className="restore-menu" ref={restoreMenuRef}>
@@ -2791,6 +2877,7 @@ export default function App() {
                     aria-haspopup="menu"
                     onClick={() => setShowRestoreMenu((open) => !open)}
                   >
+                    <Icon name="restore" />
                     Restore
                   </button>
                   {showRestoreMenu && (
@@ -2818,6 +2905,7 @@ export default function App() {
                   )}
                 </div>
                 <button className="ghost-button compact-title-button" type="button" onClick={resetPatient}>
+                  <Icon name="reset" />
                   Reset
                 </button>
               </div>
@@ -2872,7 +2960,7 @@ export default function App() {
       ) : (
       <div className="desktop-layout">
         <nav className="desktop-rail" aria-label="Desktop section navigation">
-          <button type="button" onClick={() => scrollToMobileSection("chart-section")}>
+          <button type="button" onClick={() => jumpToSection("chart-section", "chart")}>
             <span>Chart</span>
           </button>
           <button className="rail-add-button" type="button" onClick={openAddEntry}>
@@ -2881,10 +2969,10 @@ export default function App() {
           <button type="button" onClick={openAnnotationEntry}>
             <span>Annotate</span>
           </button>
-          <button type="button" onClick={() => scrollToMobileSection("records-section")}>
+          <button type="button" onClick={() => jumpToSection("records-section", "records")}>
             <span>Records</span>
           </button>
-          <button type="button" onClick={() => scrollToMobileSection("patient-section")}>
+          <button type="button" onClick={() => jumpToSection("patient-section", "patient")}>
             <span>Patient</span>
           </button>
         </nav>
@@ -2987,7 +3075,12 @@ export default function App() {
 
           <div className="recorded-heading">
             <h3>Recorded observations</h3>
-            <span>{observations.length ? `${observations.length} record${observations.length === 1 ? "" : "s"}` : "No records yet"}</span>
+            <div className="recorded-heading-actions">
+              <span>{observations.length ? `${observations.length} record${observations.length === 1 ? "" : "s"}` : "No records yet"}</span>
+              <button className="danger-button compact-clear-button" type="button" disabled={!observations.length && !annotations.length} onClick={clearObservations}>
+                Clear
+              </button>
+            </div>
           </div>
 
           {observations.length ? (
@@ -3008,11 +3101,12 @@ export default function App() {
                         type="button"
                         aria-expanded={isExpanded}
                         aria-controls={`observation-editor-${observation.id}`}
-                        onClick={() => setExpandedObservationId(isExpanded ? null : observation.id)}
+                        onClick={() => toggleObservationEditor(observation.id, isExpanded)}
                       >
                         <span className="observation-time">
                           {formatDisplayTime(observation.time)}
                           <small>Day {normalizedDay(observation.dayOffset)} · Hour {hourText}</small>
+                          {isExpanded && <em>Editing</em>}
                         </span>
                         <span className="observation-metrics" aria-label="Observation values">
                           <span className="observation-metric dilation">
@@ -3035,7 +3129,7 @@ export default function App() {
                           type="button"
                           aria-expanded={isExpanded}
                           aria-controls={`observation-editor-${observation.id}`}
-                          onClick={() => setExpandedObservationId(isExpanded ? null : observation.id)}
+                          onClick={() => toggleObservationEditor(observation.id, isExpanded)}
                         >
                           {isExpanded ? "Close" : "Edit"}
                         </button>
@@ -3114,19 +3208,18 @@ export default function App() {
             </div>
           )}
 
-          <div className="data-actions">
-            <button className="danger-button" type="button" disabled={!observations.length && !annotations.length} onClick={clearObservations}>
-              Clear
-            </button>
-          </div>
-
           <section className="annotation-section" id="annotations-section" aria-labelledby="annotation-heading">
             <div className="annotation-heading">
               <div>
                 <h3 id="annotation-heading">Chart annotations</h3>
                 <p>Long clinical narratives shown as callout boxes inside the graph.</p>
               </div>
-              <span>{annotations.length} added</span>
+              <div className="annotation-heading-actions">
+                <span>{annotations.length} added</span>
+                <button className="danger-button compact-clear-button" type="button" disabled={!annotations.length} onClick={clearAnnotations}>
+                  Clear
+                </button>
+              </div>
             </div>
             {renderAnnotationForm()}
 
@@ -3143,6 +3236,7 @@ export default function App() {
                       <div className="annotation-item-body">
                         <div>
                           <strong>{formatDisplayTime(displayTime)} · Day {normalizedDay(displayDay)}</strong>
+                          {isEditing && <em>Editing</em>}
                           <span>{annotationTypeLabel(annotation.type)} · {annotation.targetSeries === "station" ? "Station" : "Cervix"}</span>
                           <p>{annotation.text}</p>
                         </div>
@@ -3187,7 +3281,7 @@ export default function App() {
                           className={`ghost-button annotation-edit-toggle${isEditing ? " close-toggle" : ""}`}
                           type="button"
                           aria-expanded={isEditing}
-                          onClick={() => setEditingAnnotationId(isEditing ? null : annotation.id)}
+                          onClick={() => toggleAnnotationEditor(annotation.id, isEditing)}
                         >
                           {isEditing ? "Close" : "Edit"}
                         </button>
@@ -3298,23 +3392,24 @@ export default function App() {
       )}
       {!showGuide && (
         <nav className="mobile-bottom-nav" aria-label="Mobile chart navigation">
-          <button type="button" onClick={() => scrollToMobileSection("chart-section")}>
+          <button className={activeMobileNav === "chart" ? "active" : ""} type="button" onClick={() => jumpToSection("chart-section", "chart")}>
             Chart
           </button>
-          <button className="mobile-add-button" type="button" onClick={openAddEntry}>
+          <button className={`mobile-add-button${activeMobileNav === "add" ? " active" : ""}`} type="button" onClick={openAddEntry}>
             Add
           </button>
-          <button type="button" onClick={openAnnotationEntry}>
+          <button className={activeMobileNav === "annotate" ? "active" : ""} type="button" onClick={openAnnotationEntry}>
             Annotate
           </button>
-          <button type="button" onClick={() => scrollToMobileSection("records-section")}>
+          <button className={activeMobileNav === "records" ? "active" : ""} type="button" onClick={() => jumpToSection("records-section", "records")}>
             Records
           </button>
-          <button type="button" onClick={() => scrollToMobileSection("patient-section")}>
+          <button className={activeMobileNav === "patient" ? "active" : ""} type="button" onClick={() => jumpToSection("patient-section", "patient")}>
             Patient
           </button>
         </nav>
       )}
+      <p className="app-credit">(c) chu im - batch adamantos</p>
       {showChartViewer && (
         <div className="chart-viewer-backdrop" role="presentation" onMouseDown={() => setShowChartViewer(false)}>
           <section className="chart-viewer" role="dialog" aria-modal="true" aria-labelledby="chart-viewer-title" onMouseDown={(event) => event.stopPropagation()}>
