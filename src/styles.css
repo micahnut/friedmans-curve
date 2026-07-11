@@ -1826,15 +1826,15 @@ td select {
   }
 
   .patient-panel {
-    grid-row: 3;
+    grid-row: 1;
   }
 
   .data-panel {
-    grid-row: 2;
+    grid-row: 3;
   }
 
   .chart-panel {
-    grid-row: 1;
+    grid-row: 2;
   }
 
   .patient-grid {
