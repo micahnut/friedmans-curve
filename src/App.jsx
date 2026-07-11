@@ -1528,6 +1528,7 @@ export default function App() {
   const [showGuide, setShowGuide] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
+  const [expandedObservationId, setExpandedObservationId] = useState(null);
   const chartRef = useRef(null);
   const exportMenuRef = useRef(null);
   const observations = useMemo(
@@ -1722,6 +1723,7 @@ export default function App() {
       observations: [...current.observations, observation]
     }));
     setNewObservation(nextObservationDraft(nextObservations, state.patient.startTime));
+    setExpandedObservationId(observation.id);
   };
 
   const resetNewObservation = () => {
@@ -1731,6 +1733,7 @@ export default function App() {
   const confirmClearObservations = () => {
     setState((current) => ({ ...current, observations: [] }));
     setNewObservation(nextObservationDraft([], state.patient.startTime));
+    setExpandedObservationId(null);
   };
 
   const clearObservations = () => {
@@ -1744,6 +1747,7 @@ export default function App() {
       observations: current.observations.filter((observation) => observation.id !== id),
       annotations: (current.annotations || []).filter((annotation) => annotation.observationId !== id)
     }));
+    setExpandedObservationId((currentId) => (currentId === id ? null : currentId));
   };
 
   const deleteObservation = (observation) => {
@@ -1756,6 +1760,7 @@ export default function App() {
     setNewObservation(nextObservationDraft(sample.observations, sample.patient.startTime));
     setNewAnnotation(createAnnotationDraft({ time: sample.patient.startTime }));
     setNewOxytocinEvent(createOxytocinDraft({ time: sample.patient.startTime }));
+    setExpandedObservationId(null);
   };
 
   const confirmResetPatient = () => {
@@ -1770,6 +1775,7 @@ export default function App() {
     setNewObservation(nextObservationDraft([], defaults.patient.startTime));
     setNewAnnotation(createAnnotationDraft({ time: defaults.patient.startTime }));
     setNewOxytocinEvent(createOxytocinDraft({ time: defaults.patient.startTime }));
+    setExpandedObservationId(null);
   };
 
   const resetPatient = () => {
@@ -2122,68 +2128,104 @@ export default function App() {
           </div>
 
           {observations.length ? (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Time</th>
-                    <th scope="col">Day</th>
-                    <th scope="col">Hour</th>
-                    <th scope="col">Cervix</th>
-                    <th scope="col">Station</th>
-                    <th scope="col">Event marker</th>
-                    <th scope="col">Timeline note</th>
-                    <th scope="col"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {observations.map((observation) => {
-                    const status = pointStatus(observation, state.patient.startTime);
-                    const rowWarnings = observationWarnings(observation, state.patient.startTime, state.observations, observation.id);
-                    const hasWarning = rowWarnings.length > 0;
+            <div className="observation-list" aria-label="Recorded observations">
+              {observations.map((observation) => {
+                const status = pointStatus(observation, state.patient.startTime);
+                const rowWarnings = observationWarnings(observation, state.patient.startTime, state.observations, observation.id);
+                const hasWarning = rowWarnings.length > 0;
+                const isExpanded = expandedObservationId === observation.id;
+                const noteText = observation.note.trim();
+                const hourText = status.hour === null ? "--" : status.hour.toFixed(1);
 
-                    return (
-                      <tr key={observation.id} className={hasWarning ? "row-warning" : undefined}>
-                        <td data-label="Time">
-                          <input value={observation.time} type="time" onChange={(event) => updateObservation(observation.id, "time", event.target.value)} />
-                        </td>
-                        <td data-label="Day">
-                          <input value={observation.dayOffset} inputMode="numeric" placeholder="0" type="number" min="0" step="1" onChange={(event) => updateObservation(observation.id, "dayOffset", event.target.value)} />
-                        </td>
-                        <td className="hour-cell" data-label="Hour">{status.hour === null ? "--" : status.hour.toFixed(1)}</td>
-                        <td data-label="Cervix">
-                          <input value={observation.dilation} inputMode="decimal" placeholder="0–10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateObservation(observation.id, "dilation", event.target.value)} />
-                        </td>
-                        <td data-label="Station">
-                          <StationSelect
-                            value={observation.station}
-                            ariaLabel={`Station at ${formatDisplayTime(observation.time)}`}
-                            onChange={(value) => updateObservation(observation.id, "station", value)}
-                          />
-                        </td>
-                        <td className="checkbox-cell" data-label="Event marker">
-                          <input checked={Boolean(observation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateObservation(observation.id, "guideLine", event.target.checked)} />
-                        </td>
-                        <td data-label="Timeline note">
-                          <input value={observation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateObservation(observation.id, "note", event.target.value)} />
-                          {rowWarnings.length > 0 && (
-                            <ul className="row-warning-messages">
-                              {rowWarnings.map((message) => (
-                                <li key={message}>{message}</li>
-                              ))}
-                            </ul>
-                          )}
-                        </td>
-                        <td data-label="Remove observation">
-                          <button className="row-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation)}>
-                            X
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                return (
+                  <article key={observation.id} className={`observation-card${hasWarning ? " row-warning" : ""}${isExpanded ? " expanded" : ""}`}>
+                    <div className="observation-summary-row">
+                      <button
+                        className="observation-summary"
+                        type="button"
+                        aria-expanded={isExpanded}
+                        aria-controls={`observation-editor-${observation.id}`}
+                        onClick={() => setExpandedObservationId(isExpanded ? null : observation.id)}
+                      >
+                        <span className="observation-time">
+                          {formatDisplayTime(observation.time)}
+                          <small>Day {normalizedDay(observation.dayOffset)} · Hour {hourText}</small>
+                        </span>
+                        <span className="observation-metrics" aria-label="Observation values">
+                          <span>
+                            <small>Cervix</small>
+                            <strong>{observation.dilation === "" ? "--" : `${observation.dilation} cm`}</strong>
+                          </span>
+                          <span>
+                            <small>Station</small>
+                            <strong>{formatStationValue(observation.station)}</strong>
+                          </span>
+                        </span>
+                        <span className="observation-note-preview">
+                          {observation.guideLine && <small>Event</small>}
+                          <strong>{noteText || "No note"}</strong>
+                        </span>
+                        <span className="observation-toggle" aria-hidden="true">{isExpanded ? "Close" : "Edit"}</span>
+                      </button>
+                      <button className="row-delete compact-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation)}>
+                        X
+                      </button>
+                    </div>
+
+                    {hasWarning && !isExpanded && (
+                      <div className="compact-warning" aria-label="Observation needs attention">
+                        Needs attention
+                      </div>
+                    )}
+
+                    {isExpanded && (
+                      <div className="observation-editor" id={`observation-editor-${observation.id}`}>
+                        <div className="entry-grid">
+                          <label className="entry-time">
+                            Time
+                            <input value={observation.time} type="time" onChange={(event) => updateObservation(observation.id, "time", event.target.value)} />
+                          </label>
+                          <label className="entry-day">
+                            Day
+                            <input value={observation.dayOffset} inputMode="numeric" placeholder="0" type="number" min="0" step="1" onChange={(event) => updateObservation(observation.id, "dayOffset", event.target.value)} />
+                          </label>
+                          <div className="computed-field">
+                            <span>Hour</span>
+                            <strong>{hourText}</strong>
+                          </div>
+                          <label className="checkbox-field">
+                            Event marker
+                            <input checked={Boolean(observation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateObservation(observation.id, "guideLine", event.target.checked)} />
+                          </label>
+                          <label className="entry-cervix">
+                            Cervix
+                            <input value={observation.dilation} inputMode="decimal" placeholder="0-10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateObservation(observation.id, "dilation", event.target.value)} />
+                          </label>
+                          <label className="entry-station">
+                            Station
+                            <StationSelect
+                              value={observation.station}
+                              ariaLabel={`Station at ${formatDisplayTime(observation.time)}`}
+                              onChange={(value) => updateObservation(observation.id, "station", value)}
+                            />
+                          </label>
+                          <label className="entry-note">
+                            Timeline note
+                            <input value={observation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateObservation(observation.id, "note", event.target.value)} />
+                          </label>
+                        </div>
+                        {rowWarnings.length > 0 && (
+                          <ul className="row-warning-messages">
+                            {rowWarnings.map((message) => (
+                              <li key={message}>{message}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <div className="empty-state">
