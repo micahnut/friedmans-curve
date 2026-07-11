@@ -886,6 +886,123 @@ td select {
   text-align: center;
 }
 
+.observation-list {
+  display: grid;
+  gap: 8px;
+}
+
+.observation-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.observation-card.expanded {
+  background: #fbfcfd;
+}
+
+.observation-summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+  padding: 8px;
+}
+
+.observation-summary {
+  display: grid;
+  grid-template-columns: minmax(108px, 0.85fr) minmax(150px, 1fr) minmax(130px, 1.3fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.observation-summary:hover,
+.observation-summary:focus-visible {
+  background: #eef1f5;
+  transform: none;
+}
+
+.observation-time,
+.observation-note-preview,
+.observation-metrics span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.observation-time {
+  font-size: 0.98rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.observation-time small,
+.observation-metrics small,
+.observation-note-preview small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.observation-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.observation-metrics strong,
+.observation-note-preview strong {
+  overflow: hidden;
+  font-size: 0.9rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.observation-note-preview {
+  color: #3f4752;
+}
+
+.observation-toggle {
+  justify-self: end;
+  min-width: 50px;
+  color: var(--blue);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-align: right;
+}
+
+.compact-delete {
+  align-self: center;
+  flex: none;
+}
+
+.compact-warning {
+  margin: 0 8px 8px;
+  padding: 6px 9px;
+  border: 1px solid #f0c36d;
+  border-radius: 6px;
+  background: #fff8e6;
+  color: #815200;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.observation-editor {
+  display: grid;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
 .validation-list,
 .row-warning-messages {
   display: grid;
@@ -1397,6 +1514,30 @@ td select {
     align-items: flex-start;
     flex-direction: column;
     gap: 4px;
+  }
+
+  .observation-summary-row {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .observation-summary {
+    grid-template-columns: minmax(96px, 0.8fr) minmax(132px, 1fr) auto;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .observation-note-preview {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding-top: 4px;
+    border-top: 1px solid #edf0f4;
+  }
+
+  .observation-toggle {
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 38px;
   }
 
   .entry-grid {
