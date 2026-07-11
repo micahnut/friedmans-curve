@@ -3119,7 +3119,6 @@ export default function App() {
                           </span>
                         </span>
                         <span className="observation-note-preview">
-                          {observation.guideLine && <small>Event</small>}
                           <strong>{noteText || "No note"}</strong>
                         </span>
                       </button>
