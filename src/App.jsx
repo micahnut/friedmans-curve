@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const STORAGE_KEY = "friedmans-curve-builder-v2";
+const SAVED_CHARTS_KEY = "friedmans-curve-saved-charts-v1";
+const MAX_SAVED_CHARTS = 5;
 // Oxytocin infusion tracking is intentionally hidden for now.
 // Change this to true when the feature is ready to return to the UI.
 const SHOW_OXYTOCIN_FEATURE = false;
@@ -234,14 +236,94 @@ function loadState() {
       return defaults;
     }
 
+    const observations = stored.observations.map(createObservation);
+    const annotations = Array.isArray(stored.annotations) ? stored.annotations.map(createChartAnnotation) : [];
+
     return {
       patient: { ...defaults.patient, ...stored.patient },
-      observations: stored.observations.map(createObservation),
-      annotations: Array.isArray(stored.annotations) ? stored.annotations.map(createChartAnnotation) : [],
+      observations,
+      annotations: pruneAnnotationsForObservations(annotations, observations),
       oxytocinEvents: Array.isArray(stored.oxytocinEvents) ? stored.oxytocinEvents.map(createOxytocinEvent) : []
     };
   } catch {
     return makeDefaultState();
+  }
+}
+
+function normalizeChartState(values = {}) {
+  const defaults = makeDefaultState();
+  const observations = Array.isArray(values.observations) ? values.observations.map(createObservation) : [];
+  const annotations = Array.isArray(values.annotations) ? values.annotations.map(createChartAnnotation) : [];
+
+  return {
+    patient: { ...defaults.patient, ...(values.patient || {}) },
+    observations,
+    annotations: pruneAnnotationsForObservations(annotations, observations),
+    oxytocinEvents: Array.isArray(values.oxytocinEvents) ? values.oxytocinEvents.map(createOxytocinEvent) : []
+  };
+}
+
+function pruneAnnotationsForObservations(annotations, observations) {
+  const observationIds = new Set(observations.map((observation) => observation.id));
+
+  return annotations.filter((annotation) => annotation.observationId && observationIds.has(annotation.observationId));
+}
+
+function chartSaveLabel(chartState) {
+  const name = chartState.patient.patientName?.trim() || "Untitled patient";
+  const date = chartState.patient.patientDate ? formatDisplayDate(chartState.patient.patientDate) : "No date";
+
+  return `${name} · ${date}`;
+}
+
+function formatSavedTimestamp(value) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Unknown save time";
+
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function createSavedChart(chartState) {
+  const savedState = normalizeChartState(chartState);
+  const savedAt = new Date().toISOString();
+
+  return {
+    id: makeId(),
+    savedAt,
+    label: chartSaveLabel(savedState),
+    state: savedState
+  };
+}
+
+function loadSavedCharts() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SAVED_CHARTS_KEY));
+
+    if (!Array.isArray(stored)) return [];
+
+    return stored
+      .filter((chart) => chart && chart.id && chart.state)
+      .map((chart) => {
+        const state = normalizeChartState(chart.state);
+
+        return {
+          id: chart.id,
+          savedAt: chart.savedAt || new Date(0).toISOString(),
+          label: chart.label || chartSaveLabel(state),
+          state
+        };
+      })
+      .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())
+      .slice(0, MAX_SAVED_CHARTS);
+  } catch {
+    return [];
   }
 }
 
@@ -1620,23 +1702,66 @@ function GuidePage() {
         <div className="guide-grid">
           <article>
             <h3>Patient Details</h3>
-            <p>Fill in the patient panel first. Long names, AOG, OB score, and final diagnosis text wrap automatically on the generated chart.</p>
+            <p>Fill in the patient panel first. These fields print into the generated chart header and footer.</p>
             <ul>
               <li>Name, Age, OB Score, AOG, Date, Start Time</li>
               <li>Final Diagnosis for the lower chart text</li>
               <li>Resident for the signature line</li>
+              <li>Long values wrap automatically on the chart.</li>
+            </ul>
+          </article>
+
+          <article>
+            <h3>Save and Restore</h3>
+            <p>Use Save to keep the current chart in this browser. Restore opens the saved chart list.</p>
+            <ul>
+              <li>Up to 5 patient charts are saved locally.</li>
+              <li>Saving a 6th chart asks before removing the oldest saved chart.</li>
+              <li>Restoring a chart asks before replacing the chart currently on screen.</li>
+              <li>Saved charts stay on this device and browser only.</li>
             </ul>
           </article>
 
           <article>
             <h3>Observations</h3>
-            <p>Each row can plot cervical dilation, station, notes, or an event marker.</p>
+            <p>Each observation can plot cervical dilation, station, a timeline note, or an event marker.</p>
             <ul>
               <li>Time is the clock time of the event.</li>
-              <li>Day is 0 for the start date, 1 for the next day, 2 for the day after that.</li>
+              <li>Day is selected from the dropdown: 0 for the start date, 1 for the next day, and so on.</li>
               <li>Hour is calculated automatically from Start Time, Time, and Day.</li>
-              <li>Cervix accepts 0 to 10.</li>
-              <li>Station accepts -5 to 5.</li>
+              <li>Cervix is selected from 0 to 10 cm.</li>
+              <li>Station is selected from -5 to +5.</li>
+            </ul>
+          </article>
+
+          <article>
+            <h3>Records List</h3>
+            <p>Recorded observations appear as compact cards using the same blue for cervix and red for station as the chart.</p>
+            <ul>
+              <li>Edit opens the full observation form.</li>
+              <li>The trash button deletes that observation.</li>
+              <li>Deleting an observation also removes chart annotations attached to it.</li>
+              <li>Clear removes all observations and chart annotations.</li>
+            </ul>
+          </article>
+
+          <article>
+            <h3>Timeline Notes</h3>
+            <p>Short observation notes appear above the graph with their time. Use these for concise labels such as admission, medication, mount, or baby out.</p>
+            <ul>
+              <li>Notes can be used even when the row has no cervix or station value.</li>
+              <li>Notes containing oxy or oxytocin tint amber and can highlight oxytocin activity on the chart.</li>
+            </ul>
+          </article>
+
+          <article>
+            <h3>Oxytocin Notes</h3>
+            <p>The chart automatically detects oxytocin activity from observation notes.</p>
+            <ul>
+              <li>A note with oxy or oxytocin starts an amber active band.</li>
+              <li>Notes such as oxy stopped, oxytocin stopped, off, held, paused, or discontinued stop the band.</li>
+              <li>If no stop note exists, the band continues to the latest plotted clinical entry and is labeled as active.</li>
+              <li>Titration notes such as Titrated oxy to 12 gtts/min keep the active band running.</li>
             </ul>
           </article>
 
@@ -1644,28 +1769,43 @@ function GuidePage() {
             <h3>Event Marker</h3>
             <p>Check Event Marker on an observation row to draw a dotted vertical line at that timestamp, like the paper sample chart.</p>
             <ul>
-              <li>Use it for admission, oxytocin, medication, procedures, mount, or baby out.</li>
+              <li>Use it for admission, medication, procedures, mount, baby out, or other important events.</li>
               <li>It can be used even when the row only has a time and note.</li>
             </ul>
           </article>
 
           <article>
-            <h3>Timeline Notes</h3>
-            <p>Short observation notes appear above the graph with their time. Use these for concise labels such as admission or medication started.</p>
+            <h3>Chart Annotations</h3>
+            <p>Use Chart annotations for longer clinical narratives that need a callout box inside the graph.</p>
+            <ul>
+              <li>Select the exact recorded observation.</li>
+              <li>Choose whether the callout connects to the cervix or station point.</li>
+              <li>Choose a type: clinical note, medication, intervention, or outcome.</li>
+              <li>Annotations can be edited or deleted after adding.</li>
+            </ul>
           </article>
 
           <article>
-            <h3>Chart Annotations</h3>
-            <p>Use Chart annotations for longer clinical narratives. Select the exact recorded observation and choose whether the callout connects to its cervical-dilation or station point. The app places the box away from plotted lines and markers.</p>
+            <h3>Chart View</h3>
+            <p>The chart stays fitted in the page. Tap the chart to open the expanded viewer.</p>
+            <ul>
+              <li>Pinch to zoom on mobile.</li>
+              <li>Double-tap or double-click to toggle zoom.</li>
+              <li>Use Reset zoom to return to the fitted chart.</li>
+            </ul>
           </article>
 
-          {SHOW_OXYTOCIN_FEATURE && (
-            <article>
-              <h3>Oxytocin Infusion</h3>
-              <p>Record every start, increase, decrease, stop, and resume event with its documented rate and unit. Amber shading shows only the periods when the infusion is active; rate-change labels appear along the bottom of the graph.</p>
-              <p>The tracker documents care but does not recommend a dose. Always follow the applicable facility protocol and monitoring requirements.</p>
-            </article>
-          )}
+          <article>
+            <h3>Navigation</h3>
+            <p>Use the bottom navigation on mobile or the sticky rail on desktop to jump between sections.</p>
+            <ul>
+              <li>Chart jumps to the generated curve.</li>
+              <li>Add opens the mobile observation sheet.</li>
+              <li>Annotate jumps to chart annotations.</li>
+              <li>Records jumps to recorded observations.</li>
+              <li>Patient jumps to patient details.</li>
+            </ul>
+          </article>
 
           <article>
             <h3>Long Labor</h3>
@@ -1682,6 +1822,11 @@ function GuidePage() {
               <li>SVG is best for crisp editing or archiving.</li>
               <li>Full chart PNG is best for sharing the complete record.</li>
             </ul>
+          </article>
+
+          <article>
+            <h3>Feedback Messages</h3>
+            <p>Small messages appear after important actions such as loading the sample, saving, restoring, deleting, resetting, and exporting.</p>
           </article>
         </div>
       </section>
@@ -1723,15 +1868,19 @@ export default function App() {
   const [newOxytocinEvent, setNewOxytocinEvent] = useState(() => createOxytocinDraft({ time: state.patient.startTime }));
   const [showGuide, setShowGuide] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showRestoreMenu, setShowRestoreMenu] = useState(false);
+  const [savedCharts, setSavedCharts] = useState(loadSavedCharts);
   const [showMobileEntrySheet, setShowMobileEntrySheet] = useState(false);
   const [showMobileAnnotationSheet, setShowMobileAnnotationSheet] = useState(false);
   const [showChartViewer, setShowChartViewer] = useState(false);
   const [chartZoom, setChartZoom] = useState(1);
   const [confirmation, setConfirmation] = useState(null);
+  const [notification, setNotification] = useState(null);
   const [expandedObservationId, setExpandedObservationId] = useState(null);
   const [editingAnnotationId, setEditingAnnotationId] = useState(null);
   const chartRef = useRef(null);
   const exportMenuRef = useRef(null);
+  const restoreMenuRef = useRef(null);
   const chartPinchRef = useRef({ distance: 0, zoom: 1 });
   const observations = useMemo(
     () => sortedObservations(state.observations, state.patient.startTime),
@@ -1759,6 +1908,8 @@ export default function App() {
   const confirmationType = confirmation?.type;
   const confirmationObservation = confirmation?.observation;
   const confirmationAnnotation = confirmation?.annotation;
+  const confirmationSavedChart = confirmation?.savedChart;
+  const confirmationPendingSave = confirmation?.pendingSave;
   const confirmationAnnotationObservation = confirmationAnnotation
     ? state.observations.find((observation) => observation.id === confirmationAnnotation.observationId)
     : null;
@@ -1783,10 +1934,62 @@ export default function App() {
         ["Annotation", confirmationAnnotation.text.trim() || "--"]
       ]
     : [];
+  const confirmationSavedChartDetails = confirmationSavedChart
+    ? [
+        ["Patient", confirmationSavedChart.label],
+        ["Saved", formatSavedTimestamp(confirmationSavedChart.savedAt)],
+        ["Records", String(confirmationSavedChart.state.observations.length)],
+        ["Annotations", String(confirmationSavedChart.state.annotations.length)]
+      ]
+    : [];
+  const confirmationTitle = confirmationType === "clear-observations"
+    ? "Clear observations?"
+    : confirmationType === "delete-observation"
+      ? "Delete this observation?"
+      : confirmationType === "delete-annotation"
+        ? "Delete this annotation?"
+      : confirmationType === "save-chart-limit"
+        ? "Save chart and remove oldest?"
+      : confirmationType === "restore-chart"
+        ? "Restore saved chart?"
+      : confirmationType === "delete-saved-chart"
+        ? "Delete saved chart?"
+      : "Reset patient details?";
+  const confirmationMessage = confirmationType === "clear-observations"
+    ? "This will remove all recorded observations and chart annotations. This cannot be undone."
+    : confirmationType === "delete-observation"
+      ? "This will remove the observation shown below and any chart annotations attached to it. This cannot be undone."
+      : confirmationType === "delete-annotation"
+        ? "This will remove the chart annotation shown below. This cannot be undone."
+      : confirmationType === "save-chart-limit"
+        ? `You already have ${MAX_SAVED_CHARTS} saved charts. Saving this chart will remove the oldest saved chart shown below.`
+      : confirmationType === "restore-chart"
+        ? "This will replace the current chart on screen with the saved chart shown below. Save the current chart first if you need to keep it."
+      : confirmationType === "delete-saved-chart"
+        ? "This will permanently remove the saved chart shown below from this browser."
+      : "This will reset patient details and remove all observations, chart annotations, and oxytocin events. This cannot be undone.";
+  const confirmationActionLabel = confirmationType === "clear-observations"
+    ? "Clear observations"
+    : confirmationType === "delete-observation"
+      ? "Delete observation"
+      : confirmationType === "delete-annotation"
+        ? "Delete annotation"
+      : confirmationType === "save-chart-limit"
+        ? "Save and remove oldest"
+      : confirmationType === "restore-chart"
+        ? "Restore chart"
+      : confirmationType === "delete-saved-chart"
+        ? "Delete saved chart"
+      : "Reset all";
+  const confirmationIsDestructive = ["clear-observations", "delete-observation", "delete-annotation", "delete-saved-chart", "reset-patient"].includes(confirmationType);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    localStorage.setItem(SAVED_CHARTS_KEY, JSON.stringify(savedCharts));
+  }, [savedCharts]);
 
   useEffect(() => {
     if (!showExportMenu) return undefined;
@@ -1807,6 +2010,24 @@ export default function App() {
   }, [showExportMenu]);
 
   useEffect(() => {
+    if (!showRestoreMenu) return undefined;
+
+    const closeRestoreMenu = (event) => {
+      if (event.type === "keydown" ? event.key === "Escape" : !restoreMenuRef.current?.contains(event.target)) {
+        setShowRestoreMenu(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeRestoreMenu);
+    document.addEventListener("keydown", closeRestoreMenu);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeRestoreMenu);
+      document.removeEventListener("keydown", closeRestoreMenu);
+    };
+  }, [showRestoreMenu]);
+
+  useEffect(() => {
     if (!confirmation) return undefined;
 
     const closeConfirmation = (event) => {
@@ -1818,6 +2039,14 @@ export default function App() {
     document.addEventListener("keydown", closeConfirmation);
     return () => document.removeEventListener("keydown", closeConfirmation);
   }, [confirmation]);
+
+  useEffect(() => {
+    if (!notification) return undefined;
+
+    const timeout = window.setTimeout(() => setNotification(null), 2800);
+
+    return () => window.clearTimeout(timeout);
+  }, [notification]);
 
   useEffect(() => {
     if (!showMobileEntrySheet) return undefined;
@@ -1862,6 +2091,14 @@ export default function App() {
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [showChartViewer]);
+
+  const notify = (message, tone = "success") => {
+    setNotification({
+      id: makeId(),
+      message,
+      tone
+    });
+  };
 
   const updatePatient = (field, value) => {
     setState((current) => ({
@@ -1952,6 +2189,7 @@ export default function App() {
     setNewAnnotation(createAnnotationDraft({
       type: newAnnotation.type
     }));
+    notify("Annotation added.");
   };
 
   const resetNewAnnotation = () => {
@@ -1964,6 +2202,7 @@ export default function App() {
       annotations: (current.annotations || []).filter((annotation) => annotation.id !== id)
     }));
     setEditingAnnotationId((currentId) => (currentId === id ? null : currentId));
+    notify("Annotation deleted.");
   };
 
   const deleteAnnotation = (annotation) => {
@@ -1988,6 +2227,7 @@ export default function App() {
       action: newOxytocinEvent.action === "stop" ? "resume" : "increase",
       unit: newOxytocinEvent.unit
     }));
+    notify("Infusion event added.");
   };
 
   const deleteOxytocinEvent = (id) => {
@@ -1995,6 +2235,7 @@ export default function App() {
       ...current,
       oxytocinEvents: (current.oxytocinEvents || []).filter((event) => event.id !== id)
     }));
+    notify("Infusion event deleted.");
   };
 
   const addObservation = () => {
@@ -2008,6 +2249,7 @@ export default function App() {
     setNewObservation(nextObservationDraft(nextObservations, state.patient.startTime));
     setExpandedObservationId(observation.id);
     setShowMobileEntrySheet(false);
+    notify("Observation added.");
   };
 
   const resetNewObservation = () => {
@@ -2015,13 +2257,15 @@ export default function App() {
   };
 
   const confirmClearObservations = () => {
-    setState((current) => ({ ...current, observations: [] }));
+    setState((current) => ({ ...current, observations: [], annotations: [] }));
     setNewObservation(nextObservationDraft([], state.patient.startTime));
     setExpandedObservationId(null);
+    setEditingAnnotationId(null);
+    notify("Observations and annotations cleared.");
   };
 
   const clearObservations = () => {
-    if (!state.observations.length) return;
+    if (!state.observations.length && !annotations.length) return;
     setConfirmation({ type: "clear-observations" });
   };
 
@@ -2032,10 +2276,66 @@ export default function App() {
       annotations: (current.annotations || []).filter((annotation) => annotation.observationId !== id)
     }));
     setExpandedObservationId((currentId) => (currentId === id ? null : currentId));
+    notify("Observation deleted.");
   };
 
   const deleteObservation = (observation) => {
     setConfirmation({ type: "delete-observation", observation: { ...observation } });
+  };
+
+  const saveChartSnapshot = (savedChart, shouldDropOldest = false) => {
+    setSavedCharts((current) => {
+      const nextCharts = shouldDropOldest
+        ? [savedChart, ...current]
+            .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())
+            .slice(0, MAX_SAVED_CHARTS)
+        : [savedChart, ...current].slice(0, MAX_SAVED_CHARTS);
+
+      return nextCharts;
+    });
+    setShowRestoreMenu(false);
+    notify(shouldDropOldest ? "Chart saved. Oldest saved chart removed." : "Chart saved.");
+  };
+
+  const saveCurrentChart = () => {
+    const savedChart = createSavedChart(state);
+
+    if (savedCharts.length >= MAX_SAVED_CHARTS) {
+      const oldestChart = [...savedCharts].sort((a, b) => new Date(a.savedAt).getTime() - new Date(b.savedAt).getTime())[0];
+      setConfirmation({ type: "save-chart-limit", pendingSave: savedChart, savedChart: oldestChart });
+      return;
+    }
+
+    saveChartSnapshot(savedChart);
+  };
+
+  const restoreSavedChart = (savedChart) => {
+    setConfirmation({ type: "restore-chart", savedChart });
+    setShowRestoreMenu(false);
+  };
+
+  const confirmRestoreSavedChart = (savedChart) => {
+    const restoredState = normalizeChartState(savedChart.state);
+
+    setState(restoredState);
+    setNewObservation(nextObservationDraft(restoredState.observations, restoredState.patient.startTime));
+    setNewAnnotation(createAnnotationDraft({ time: restoredState.patient.startTime }));
+    setNewOxytocinEvent(createOxytocinDraft({ time: restoredState.patient.startTime }));
+    setExpandedObservationId(null);
+    setEditingAnnotationId(null);
+    setShowMobileEntrySheet(false);
+    setShowMobileAnnotationSheet(false);
+    notify("Saved chart restored.");
+  };
+
+  const deleteSavedChart = (savedChart) => {
+    setConfirmation({ type: "delete-saved-chart", savedChart });
+    setShowRestoreMenu(false);
+  };
+
+  const confirmDeleteSavedChart = (id) => {
+    setSavedCharts((current) => current.filter((chart) => chart.id !== id));
+    notify("Saved chart deleted.");
   };
 
   const loadSample = () => {
@@ -2045,6 +2345,7 @@ export default function App() {
     setNewAnnotation(createAnnotationDraft({ time: sample.patient.startTime }));
     setNewOxytocinEvent(createOxytocinDraft({ time: sample.patient.startTime }));
     setExpandedObservationId(null);
+    notify("Sample chart loaded.");
   };
 
   const confirmResetPatient = () => {
@@ -2060,6 +2361,7 @@ export default function App() {
     setNewAnnotation(createAnnotationDraft({ time: defaults.patient.startTime }));
     setNewOxytocinEvent(createOxytocinDraft({ time: defaults.patient.startTime }));
     setExpandedObservationId(null);
+    notify("Chart reset.");
   };
 
   const resetPatient = () => {
@@ -2092,12 +2394,25 @@ export default function App() {
       confirmDeleteAnnotation(confirmationAnnotation.id);
     }
 
+    if (confirmationType === "save-chart-limit" && confirmationPendingSave) {
+      saveChartSnapshot(confirmationPendingSave, true);
+    }
+
+    if (confirmationType === "restore-chart" && confirmationSavedChart) {
+      confirmRestoreSavedChart(confirmationSavedChart);
+    }
+
+    if (confirmationType === "delete-saved-chart" && confirmationSavedChart?.id) {
+      confirmDeleteSavedChart(confirmationSavedChart.id);
+    }
+
     setConfirmation(null);
   };
 
   const downloadSvg = () => {
     if (!chartRef.current) return;
     download("friedmans-curve.svg", serializeSvg(chartRef.current), "image/svg+xml;charset=utf-8");
+    notify("SVG downloaded.");
   };
 
   const downloadPng = () => {
@@ -2129,6 +2444,7 @@ export default function App() {
         link.click();
         link.remove();
         URL.revokeObjectURL(pngUrl);
+        notify("Full chart PNG downloaded.");
       }, "image/png");
     };
 
@@ -2192,6 +2508,7 @@ export default function App() {
         link.click();
         link.remove();
         URL.revokeObjectURL(pngUrl);
+        notify("Presentation PNG downloaded.");
       }, "image/png");
     };
 
@@ -2363,6 +2680,43 @@ export default function App() {
                 <button className="ghost-button compact-title-button" type="button" onClick={loadSample}>
                   Load Sample
                 </button>
+                <button className="ghost-button compact-title-button" type="button" onClick={saveCurrentChart}>
+                  Save
+                </button>
+                <div className="restore-menu" ref={restoreMenuRef}>
+                  <button
+                    className="ghost-button compact-title-button"
+                    type="button"
+                    aria-expanded={showRestoreMenu}
+                    aria-haspopup="menu"
+                    onClick={() => setShowRestoreMenu((open) => !open)}
+                  >
+                    Restore
+                  </button>
+                  {showRestoreMenu && (
+                    <div className="restore-options" role="menu" aria-label="Saved patient charts">
+                      <div className="restore-menu-heading">
+                        <strong>Saved charts</strong>
+                        <span>{savedCharts.length}/{MAX_SAVED_CHARTS}</span>
+                      </div>
+                      {savedCharts.length > 0 ? (
+                        savedCharts.map((savedChart) => (
+                          <div className="saved-chart-row" key={savedChart.id}>
+                            <button type="button" role="menuitem" onClick={() => restoreSavedChart(savedChart)}>
+                              {savedChart.label}
+                              <span>{formatSavedTimestamp(savedChart.savedAt)} · {savedChart.state.observations.length} records</span>
+                            </button>
+                            <button className="row-delete saved-chart-delete" type="button" title="Delete saved chart" aria-label={`Delete saved chart ${savedChart.label}`} onClick={() => deleteSavedChart(savedChart)}>
+                              <Icon name="trash" />
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="restore-empty">No saved charts yet.</div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <button className="ghost-button compact-title-button" type="button" onClick={resetPatient}>
                   Reset
                 </button>
@@ -2390,7 +2744,7 @@ export default function App() {
               </button>
               {showExportMenu && (
                 <div className="export-options" role="menu" aria-label="Export chart">
-                  <button type="button" role="menuitem" onClick={() => { window.print(); setShowExportMenu(false); }}>
+                  <button type="button" role="menuitem" onClick={() => { window.print(); notify("Print dialog opened."); setShowExportMenu(false); }}>
                     Print chart
                     <span>Use the browser print dialog</span>
                   </button>
@@ -2661,7 +3015,7 @@ export default function App() {
           )}
 
           <div className="data-actions">
-            <button className="danger-button" type="button" disabled={!observations.length} onClick={clearObservations}>
+            <button className="danger-button" type="button" disabled={!observations.length && !annotations.length} onClick={clearObservations}>
               Clear
             </button>
           </div>
@@ -2923,22 +3277,10 @@ export default function App() {
             <div className="confirm-icon" aria-hidden="true">!</div>
             <div className="confirm-copy">
               <h2 id="confirm-title">
-                {confirmationType === "clear-observations"
-                  ? "Clear observations?"
-                  : confirmationType === "delete-observation"
-                    ? "Delete this observation?"
-                    : confirmationType === "delete-annotation"
-                      ? "Delete this annotation?"
-                    : "Reset patient details?"}
+                {confirmationTitle}
               </h2>
               <p id="confirm-message">
-                {confirmationType === "clear-observations"
-                  ? "This will remove all recorded observations from the chart. This cannot be undone."
-                  : confirmationType === "delete-observation"
-                    ? "This will remove the observation shown below and any chart annotations attached to it. This cannot be undone."
-                    : confirmationType === "delete-annotation"
-                      ? "This will remove the chart annotation shown below. This cannot be undone."
-                    : "This will reset patient details and remove all observations, chart annotations, and oxytocin events. This cannot be undone."}
+                {confirmationMessage}
               </p>
               {confirmationType === "delete-observation" && (
                 <dl className="confirm-details" aria-label="Observation to delete">
@@ -2960,22 +3302,31 @@ export default function App() {
                   ))}
                 </dl>
               )}
+              {["save-chart-limit", "restore-chart", "delete-saved-chart"].includes(confirmationType) && (
+                <dl className="confirm-details" aria-label="Saved chart details">
+                  {confirmationSavedChartDetails.map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </div>
             <div className="confirm-actions">
               <button className="ghost-button" type="button" onClick={() => setConfirmation(null)}>
                 Cancel
               </button>
-              <button className="danger-button confirm-danger" type="button" onClick={confirmPendingAction}>
-                {confirmationType === "clear-observations"
-                  ? "Clear observations"
-                  : confirmationType === "delete-observation"
-                    ? "Delete observation"
-                    : confirmationType === "delete-annotation"
-                      ? "Delete annotation"
-                    : "Reset all"}
+              <button className={`${confirmationIsDestructive ? "danger-button confirm-danger" : "primary-button"}`} type="button" onClick={confirmPendingAction}>
+                {confirmationActionLabel}
               </button>
             </div>
           </section>
+        </div>
+      )}
+      {notification && (
+        <div className={`app-toast ${notification.tone}`} role="status" aria-live="polite">
+          {notification.message}
         </div>
       )}
     </div>
