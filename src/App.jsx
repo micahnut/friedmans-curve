@@ -5,6 +5,7 @@ const STORAGE_KEY = "friedmans-curve-builder-v2";
 // Change this to true when the feature is ready to return to the UI.
 const SHOW_OXYTOCIN_FEATURE = false;
 const STATION_VALUES = Array.from({ length: 11 }, (_, index) => index - 5);
+const DAY_VALUES = Array.from({ length: 8 }, (_, index) => index);
 const NOTE_LABEL_MAX_CHARS = 23;
 const NOTE_LABEL_MAX_WIDTH = 176;
 const NOTE_LABEL_LANE_LIMIT = 5;
@@ -301,6 +302,34 @@ function StationSelect({ value, onChange, ariaLabel = "Station" }) {
   );
 }
 
+function CervixSelect({ value, onChange, ariaLabel = "Cervical dilation" }) {
+  return (
+    <select className="cervix-select" value={value === "" ? "" : String(value)} aria-label={ariaLabel} onChange={(event) => onChange(event.target.value)}>
+      <option value="">Select cervix</option>
+      {Array.from({ length: 11 }, (_, index) => (
+        <option key={index} value={String(index)}>
+          {index} cm
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function DaySelect({ value, onChange, ariaLabel = "Day" }) {
+  const currentValue = value === "" ? "0" : String(normalizedDay(value));
+  const options = DAY_VALUES.includes(Number(currentValue)) ? DAY_VALUES : [...DAY_VALUES, Number(currentValue)];
+
+  return (
+    <select className="day-select" value={currentValue} aria-label={ariaLabel} onChange={(event) => onChange(event.target.value)}>
+      {options.map((day) => (
+        <option key={day} value={String(day)}>
+          Day {day}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function numberOrNull(value) {
   if (value === "" || value === null || value === undefined) return null;
   const number = Number(value);
@@ -458,28 +487,27 @@ function clinicalSummary(observations, startTime) {
   if (!latest) {
     return {
       hasData: false,
-      items: [
-        ["Start", formatDisplayTime(startTime)],
-        ["Latest", "--"],
-        ["Elapsed", "--"],
-        ["Cervix", "--"],
-        ["Station", "--"]
+      primary: [
+        ["Start", formatDisplayTime(startTime), "latest"],
+        ["Latest", "--", "latest"],
+        ["Cervix", "--", "dilation"],
+        ["Station", "--", "station"]
       ]
     };
   }
 
   const latestDilation = [...validObservations].reverse().find(({ status }) => status.dilation !== null)?.status.dilation;
   const latestStation = [...validObservations].reverse().find(({ status }) => status.station !== null)?.status.station;
+  const latestDilationText = latestDilation === undefined ? "--" : `${latestDilation} cm`;
+  const latestStationText = latestStation === undefined ? "--" : `${latestStation > 0 ? "+" : ""}${latestStation}`;
 
   return {
     hasData: true,
-    items: [
-      ["Start", formatDisplayTime(startTime)],
-      ["Latest", formatDisplayTime(latest.observation.time)],
-      ["Elapsed", `${latest.status.hour.toFixed(1)}h`],
-      ["Cervix", latestDilation === undefined ? "--" : `${latestDilation} cm`],
-      ["Station", latestStation === undefined ? "--" : `${latestStation > 0 ? "+" : ""}${latestStation}`],
-      ["Records", String(validObservations.length)]
+    primary: [
+      ["Start", formatDisplayTime(startTime), "latest"],
+      ["Latest", formatDisplayTime(latest.observation.time), "latest"],
+      ["Cervix", latestDilationText, "dilation"],
+      ["Station", latestStationText, "station"]
     ]
   };
 }
@@ -822,12 +850,14 @@ function formatDisplayDate(value) {
   });
 }
 
-function Chart({ patient, observations, annotations, oxytocinEvents, chartRef }) {
+function Chart({ patient, observations, annotations, oxytocinEvents, chartRef, chartId = "curveChart" }) {
   const data = useMemo(
     () => buildSvgData(patient, observations, annotations, oxytocinEvents),
     [patient, observations, annotations, oxytocinEvents]
   );
   const [hoveredPoint, setHoveredPoint] = useState(null);
+  const internalChartRef = useRef(null);
+  const activeChartRef = chartRef || internalChartRef;
   const { width, grid } = data;
   const info = [
     ["Name", patient.patientName, 3.2],
@@ -887,7 +917,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, chartRef })
     height: Math.min(height, grid.bottom + 78) - presentationTop
   };
   const showPointDetails = (point, series) => {
-    const bounds = chartRef.current?.getBoundingClientRect();
+    const bounds = activeChartRef.current?.getBoundingClientRect();
 
     if (!bounds) return;
 
@@ -904,8 +934,8 @@ function Chart({ patient, observations, annotations, oxytocinEvents, chartRef })
   return (
     <div className="chart-interactive">
       <svg
-        id="curveChart"
-        ref={chartRef}
+        id={chartId}
+        ref={activeChartRef}
         role="group"
         aria-label="Generated Friedman's curve. Hover or focus a plotted point to inspect it."
         viewBox={`0 0 ${width} ${height}`}
@@ -1093,9 +1123,9 @@ function NoteLabels({ notes, grid }) {
 
     return (
       <g key={`${note.x}-${note.text}`} data-presentation-note="true" data-presentation-note-y={y}>
-        <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke="#9aa3af" strokeWidth="1" />
-        <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill="#ffffff" stroke="#d7dce3" strokeWidth="1" opacity="0.96" />
-        <text x={note.labelX + 9} y={y + 15} fontSize="10" fontWeight="800" fill="#3e4650">
+        <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke="#cfc7ba" strokeWidth="1" />
+        <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill="#f8f6f2" stroke="#e2ddd3" strokeWidth="1" opacity="0.98" />
+        <text x={note.labelX + 9} y={y + 15} fontSize="10" fontWeight="800" fill="#4b4034">
           {note.labelLines.map((line, index) => (
             <tspan key={`${line}-${index}`} x={note.labelX + 9} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
               {line}
@@ -1369,6 +1399,16 @@ function Series({ points, color, marker, onPointEnter, onPointLeave }) {
 }
 
 function Icon({ name }) {
+  if (name === "info") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v5" />
+        <path d="M12 8h.01" />
+      </svg>
+    );
+  }
+
   if (name === "guide") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -1397,6 +1437,18 @@ function Icon({ name }) {
         <path d="M12 3v12" />
         <path d="m7 10 5 5 5-5" />
         <path d="M5 21h14" />
+      </svg>
+    );
+  }
+
+  if (name === "trash") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M3 6h18" />
+        <path d="M8 6V4h8v2" />
+        <path d="m19 6-1 15H6L5 6" />
+        <path d="M10 11v6" />
+        <path d="M14 11v6" />
       </svg>
     );
   }
@@ -1527,10 +1579,16 @@ export default function App() {
   const [newOxytocinEvent, setNewOxytocinEvent] = useState(() => createOxytocinDraft({ time: state.patient.startTime }));
   const [showGuide, setShowGuide] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showMobileEntrySheet, setShowMobileEntrySheet] = useState(false);
+  const [showMobileAnnotationSheet, setShowMobileAnnotationSheet] = useState(false);
+  const [showChartViewer, setShowChartViewer] = useState(false);
+  const [chartZoom, setChartZoom] = useState(1);
   const [confirmation, setConfirmation] = useState(null);
   const [expandedObservationId, setExpandedObservationId] = useState(null);
+  const [editingAnnotationId, setEditingAnnotationId] = useState(null);
   const chartRef = useRef(null);
   const exportMenuRef = useRef(null);
+  const chartPinchRef = useRef({ distance: 0, zoom: 1 });
   const observations = useMemo(
     () => sortedObservations(state.observations, state.patient.startTime),
     [state.observations, state.patient.startTime]
@@ -1617,6 +1675,50 @@ export default function App() {
     return () => document.removeEventListener("keydown", closeConfirmation);
   }, [confirmation]);
 
+  useEffect(() => {
+    if (!showMobileEntrySheet) return undefined;
+
+    const closeMobileEntrySheet = (event) => {
+      if (event.key === "Escape") {
+        setShowMobileEntrySheet(false);
+      }
+    };
+
+    document.addEventListener("keydown", closeMobileEntrySheet);
+    return () => document.removeEventListener("keydown", closeMobileEntrySheet);
+  }, [showMobileEntrySheet]);
+
+  useEffect(() => {
+    if (!showMobileAnnotationSheet) return undefined;
+
+    const closeMobileAnnotationSheet = (event) => {
+      if (event.key === "Escape") {
+        setShowMobileAnnotationSheet(false);
+      }
+    };
+
+    document.addEventListener("keydown", closeMobileAnnotationSheet);
+    return () => document.removeEventListener("keydown", closeMobileAnnotationSheet);
+  }, [showMobileAnnotationSheet]);
+
+  useEffect(() => {
+    if (!showChartViewer) return undefined;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setShowChartViewer(false);
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [showChartViewer]);
+
   const updatePatient = (field, value) => {
     setState((current) => ({
       ...current,
@@ -1647,6 +1749,15 @@ export default function App() {
     setNewAnnotation((current) => ({ ...current, [field]: value }));
   };
 
+  const updateAnnotation = (id, field, value) => {
+    setState((current) => ({
+      ...current,
+      annotations: (current.annotations || []).map((annotation) =>
+        annotation.id === id ? { ...annotation, [field]: value } : annotation
+      )
+    }));
+  };
+
   const selectAnnotationObservation = (observationId) => {
     const observation = state.observations.find((item) => item.id === observationId);
 
@@ -1664,6 +1775,29 @@ export default function App() {
     }));
   };
 
+  const selectSavedAnnotationObservation = (annotationId, observationId) => {
+    const observation = state.observations.find((item) => item.id === observationId);
+
+    setState((current) => ({
+      ...current,
+      annotations: (current.annotations || []).map((annotation) => {
+        if (annotation.id !== annotationId) return annotation;
+
+        if (!observation) {
+          return { ...annotation, observationId: "" };
+        }
+
+        return {
+          ...annotation,
+          observationId,
+          time: observation.time,
+          dayOffset: normalizedDay(observation.dayOffset),
+          targetSeries: observation.dilation !== "" ? "dilation" : "station"
+        };
+      })
+    }));
+  };
+
   const addAnnotation = () => {
     if (!newAnnotation.observationId || !newAnnotation.time || !newAnnotation.text.trim()) return;
 
@@ -1676,11 +1810,16 @@ export default function App() {
     }));
   };
 
+  const resetNewAnnotation = () => {
+    setNewAnnotation(createAnnotationDraft({ type: newAnnotation.type, time: state.patient.startTime }));
+  };
+
   const confirmDeleteAnnotation = (id) => {
     setState((current) => ({
       ...current,
       annotations: (current.annotations || []).filter((annotation) => annotation.id !== id)
     }));
+    setEditingAnnotationId((currentId) => (currentId === id ? null : currentId));
   };
 
   const deleteAnnotation = (annotation) => {
@@ -1724,6 +1863,7 @@ export default function App() {
     }));
     setNewObservation(nextObservationDraft(nextObservations, state.patient.startTime));
     setExpandedObservationId(observation.id);
+    setShowMobileEntrySheet(false);
   };
 
   const resetNewObservation = () => {
@@ -1914,11 +2054,177 @@ export default function App() {
     image.src = url;
   };
 
+  const scrollToMobileSection = (id) => {
+    setShowMobileEntrySheet(false);
+    setShowMobileAnnotationSheet(false);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const openMobileEntrySheet = () => {
+    setShowMobileAnnotationSheet(false);
+    setShowMobileEntrySheet(true);
+  };
+
+  const openMobileAnnotationSheet = () => {
+    setShowMobileEntrySheet(false);
+    setShowMobileAnnotationSheet(true);
+  };
+
+  const openChartViewer = () => {
+    setChartZoom(1);
+    setShowChartViewer(true);
+  };
+  const touchDistance = (touches) => {
+    const [first, second] = touches;
+    return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+  };
+  const startChartPinch = (event) => {
+    if (event.touches.length !== 2) return;
+
+    chartPinchRef.current = {
+      distance: touchDistance(event.touches),
+      zoom: chartZoom
+    };
+  };
+  const moveChartPinch = (event) => {
+    if (event.touches.length !== 2 || !chartPinchRef.current.distance) return;
+
+    event.preventDefault();
+    const nextZoom = chartPinchRef.current.zoom * (touchDistance(event.touches) / chartPinchRef.current.distance);
+    setChartZoom(Math.min(2.75, Math.max(1, Number(nextZoom.toFixed(2)))));
+  };
+  const endChartPinch = () => {
+    chartPinchRef.current = { distance: 0, zoom: chartZoom };
+  };
+  const toggleChartZoom = () => {
+    setChartZoom((zoom) => (zoom > 1.05 ? 1 : 1.8));
+  };
+
+  const renderNewObservationForm = (variant = "inline") => (
+    <div className={`entry-card ${variant === "sheet" ? "mobile-entry-card" : ""}`} aria-label="New observation">
+      <div className="entry-heading">
+        <h3>New observation</h3>
+        <span>Enter the next labor record, then add it to the chart.</span>
+      </div>
+      <div className="entry-grid">
+        <label className="entry-time">
+          Time
+          <input value={newObservation.time} type="time" onChange={(event) => updateNewObservation("time", event.target.value)} />
+        </label>
+        <label className="entry-day">
+          Day
+          <DaySelect value={newObservation.dayOffset} onChange={(value) => updateNewObservation("dayOffset", value)} />
+        </label>
+        <div className="computed-field">
+          <span>Hour</span>
+          <strong>{newObservationStatus.hour === null ? "--" : newObservationStatus.hour.toFixed(1)}</strong>
+        </div>
+        <label className="checkbox-field">
+          Event marker
+          <input checked={Boolean(newObservation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateNewObservation("guideLine", event.target.checked)} />
+        </label>
+        <label className="entry-cervix">
+          Cervix
+          <CervixSelect value={newObservation.dilation} onChange={(value) => updateNewObservation("dilation", value)} />
+        </label>
+        <label className="entry-station">
+          Station
+          <StationSelect value={newObservation.station} onChange={(value) => updateNewObservation("station", value)} />
+        </label>
+        <label className="entry-note">
+          Timeline note
+          <input value={newObservation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateNewObservation("note", event.target.value)} />
+        </label>
+      </div>
+      {newObservationWarnings.length > 0 && (
+        <ul className="validation-list" aria-live="polite">
+          {newObservationWarnings.map((message) => (
+            <li key={message}>{message}</li>
+          ))}
+        </ul>
+      )}
+      <div className="entry-actions">
+        <button className="ghost-button" type="button" onClick={resetNewObservation}>
+          Reset entry
+        </button>
+        <button className="primary-button" type="button" onClick={addObservation}>
+          Add to chart
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderAnnotationForm = (variant = "inline") => (
+    <div className={`annotation-form ${variant === "sheet" ? "mobile-annotation-form" : ""}`}>
+      <label>
+        Attach to observation
+        <select value={newAnnotation.observationId} onChange={(event) => selectAnnotationObservation(event.target.value)}>
+          <option value="">Select a plotted entry</option>
+          {observations.map((observation) => (
+            <option key={observation.id} value={observation.id}>
+              {formatDisplayTime(observation.time)} · Day {normalizedDay(observation.dayOffset)} · Cervix {observation.dilation || "--"} · Station {formatStationValue(observation.station)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Connect to
+        <select value={newAnnotation.targetSeries} onChange={(event) => updateNewAnnotation("targetSeries", event.target.value)}>
+          <option value="dilation">Cervical dilation point</option>
+          <option value="station">Station point</option>
+        </select>
+      </label>
+      <label>
+        Type
+        <select value={newAnnotation.type} onChange={(event) => updateNewAnnotation("type", event.target.value)}>
+          <option value="clinical">Clinical note</option>
+          <option value="medication">Medication</option>
+          <option value="intervention">Intervention</option>
+          <option value="outcome">Outcome / decision</option>
+        </select>
+      </label>
+      <label className="annotation-text">
+        Annotation
+        <textarea value={newAnnotation.text} rows="3" placeholder="e.g., FHR pattern, contraction findings, or clinical action taken" onChange={(event) => updateNewAnnotation("text", event.target.value)} />
+      </label>
+      <div className="annotation-actions">
+        <button className="primary-button annotation-add" type="button" disabled={!newAnnotation.observationId || !newAnnotation.text.trim()} onClick={() => {
+          addAnnotation();
+          if (variant === "sheet") setShowMobileAnnotationSheet(false);
+        }}>
+          Add annotation
+        </button>
+        <button className="ghost-button annotation-reset" type="button" onClick={resetNewAnnotation}>
+          Reset entry
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div>
-          <p className="eyebrow">Labor Charting</p>
+        <div className="app-title-block">
+          <div className="title-top-row">
+            <div className="title-eyebrow-row">
+              <p className="eyebrow">Labor Charting</p>
+              {!showGuide && (
+                <button className="guide-info-button" type="button" aria-label="Open user guide" title="User guide" onClick={() => setShowGuide(true)}>
+                  <Icon name="info" />
+                </button>
+              )}
+            </div>
+            {!showGuide && (
+              <div className="title-utility-actions">
+                <button className="ghost-button compact-title-button" type="button" onClick={loadSample}>
+                  Load Sample
+                </button>
+                <button className="ghost-button compact-title-button" type="button" onClick={resetPatient}>
+                  Reset
+                </button>
+              </div>
+            )}
+          </div>
           <h1>Friedman&apos;s Curve</h1>
         </div>
         <div className="header-actions" aria-label="Chart actions">
@@ -1927,42 +2233,38 @@ export default function App() {
               Back to chart
             </button>
           ) : (
-            <>
-              <button className="ghost-button" type="button" onClick={() => setShowGuide(true)}>
-                User Guide
+            <div className="export-menu" ref={exportMenuRef}>
+              <button
+                className="export-button"
+                type="button"
+                aria-expanded={showExportMenu}
+                aria-haspopup="menu"
+                onClick={() => setShowExportMenu((open) => !open)}
+              >
+                <Icon name="download" />
+                Export
               </button>
-              <button className="icon-button" type="button" title="Print chart" aria-label="Print chart" onClick={() => window.print()}>
-                <Icon name="print" />
-              </button>
-              <div className="export-menu" ref={exportMenuRef}>
-                <button
-                  className="export-button"
-                  type="button"
-                  aria-expanded={showExportMenu}
-                  aria-haspopup="menu"
-                  onClick={() => setShowExportMenu((open) => !open)}
-                >
-                  <Icon name="download" />
-                  Export chart
-                </button>
-                {showExportMenu && (
-                  <div className="export-options" role="menu" aria-label="Export chart format">
-                    <button type="button" role="menuitem" onClick={() => { downloadPresentationPng(); setShowExportMenu(false); }}>
-                      Presentation PNG (16:9)
-                      <span>Graph-focused for slides</span>
-                    </button>
-                    <button type="button" role="menuitem" onClick={() => { downloadPng(); setShowExportMenu(false); }}>
-                      Full chart PNG
-                      <span>Includes patient details</span>
-                    </button>
-                    <button type="button" role="menuitem" onClick={() => { downloadSvg(); setShowExportMenu(false); }}>
-                      Download SVG
-                      <span>Best for editing</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </>
+              {showExportMenu && (
+                <div className="export-options" role="menu" aria-label="Export chart">
+                  <button type="button" role="menuitem" onClick={() => { window.print(); setShowExportMenu(false); }}>
+                    Print chart
+                    <span>Use the browser print dialog</span>
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { downloadPresentationPng(); setShowExportMenu(false); }}>
+                    Presentation PNG (16:9)
+                    <span>Graph-focused for slides</span>
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { downloadPng(); setShowExportMenu(false); }}>
+                    Full chart PNG
+                    <span>Includes patient details</span>
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { downloadSvg(); setShowExportMenu(false); }}>
+                    Download SVG
+                    <span>Best for editing</span>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </header>
@@ -1970,18 +2272,28 @@ export default function App() {
       {showGuide ? (
         <GuidePage />
       ) : (
-      <main className="workspace">
-        <section className="panel patient-panel" aria-label="Patient information">
+      <div className="desktop-layout">
+        <nav className="desktop-rail" aria-label="Desktop section navigation">
+          <button type="button" onClick={() => scrollToMobileSection("chart-section")}>
+            <span>Chart</span>
+          </button>
+          <button type="button" onClick={() => scrollToMobileSection("records-section")}>
+            <span>Add</span>
+          </button>
+          <button type="button" onClick={() => scrollToMobileSection("annotations-section")}>
+            <span>Annotate</span>
+          </button>
+          <button type="button" onClick={() => scrollToMobileSection("records-section")}>
+            <span>Records</span>
+          </button>
+          <button type="button" onClick={() => scrollToMobileSection("patient-section")}>
+            <span>Patient</span>
+          </button>
+        </nav>
+        <main className="workspace">
+        <section className="panel patient-panel" id="patient-section" aria-label="Patient information">
           <div className="panel-heading">
             <h2>Patient</h2>
-            <div className="patient-actions">
-              <button className="ghost-button" type="button" onClick={loadSample}>
-                Load Sample
-              </button>
-              <button className="ghost-button" type="button" onClick={resetPatient}>
-                Reset
-              </button>
-            </div>
           </div>
 
           <div className="patient-grid">
@@ -2022,7 +2334,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="chart-panel" aria-label="Friedman's curve chart">
+        <section className="chart-panel" id="chart-section" aria-label="Friedman's curve chart">
           <div className="chart-toolbar">
             <div className="legend" aria-label="Chart legend">
               <span>
@@ -2040,87 +2352,40 @@ export default function App() {
                 </span>
               )}
             </div>
-            <div className="chart-status" aria-live="polite">
-              {chartData.warningCount
-                ? `${chartData.validCount} plotted, ${chartData.warningCount} out of range`
-                : `${chartData.validCount} observation${chartData.validCount === 1 ? "" : "s"} plotted`}
+            <div className="chart-toolbar-actions">
+              <div className="chart-status" aria-live="polite">
+                {chartData.warningCount
+                  ? `${chartData.validCount} plotted, ${chartData.warningCount} out of range`
+                  : `${chartData.validCount} observation${chartData.validCount === 1 ? "" : "s"} plotted`}
+              </div>
             </div>
           </div>
           <div className="clinical-summary" aria-label="Clinical summary">
-            <div className="summary-heading">
-              <h3>Clinical summary</h3>
-              <span>{summary.hasData ? "Latest valid observation" : "No observations recorded yet"}</span>
-            </div>
-            <div className="summary-items">
-              {summary.items.map(([label, value]) => (
-                <div className="summary-item" key={label}>
+            <div className="summary-tile-grid">
+              {summary.primary.map(([label, value, tone]) => (
+                <div className={`summary-tile ${tone || ""}`} key={label}>
                   <span>{label}</span>
                   <strong>{value}</strong>
                 </div>
               ))}
             </div>
           </div>
-          <div className="chart-scroller">
+          <div className="chart-scroller" role="button" tabIndex="0" aria-label="Open expanded chart viewer" onClick={openChartViewer} onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openChartViewer();
+            }
+          }}>
             <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} chartRef={chartRef} />
           </div>
         </section>
 
-        <aside className="panel data-panel" aria-label="Observation data">
+        <aside className="panel data-panel" id="records-section" aria-label="Observation data">
           <div className="panel-heading">
             <h2>Observations</h2>
           </div>
 
-          <div className="entry-card" aria-label="New observation">
-            <div className="entry-heading">
-              <h3>New observation</h3>
-              <span>Enter the next labor record, then add it to the chart.</span>
-            </div>
-            <div className="entry-grid">
-              <label className="entry-time">
-                Time
-                <input value={newObservation.time} type="time" onChange={(event) => updateNewObservation("time", event.target.value)} />
-              </label>
-              <label className="entry-day">
-                Day
-                <input value={newObservation.dayOffset} inputMode="numeric" placeholder="0" type="number" min="0" step="1" onChange={(event) => updateNewObservation("dayOffset", event.target.value)} />
-              </label>
-              <div className="computed-field">
-                <span>Hour</span>
-                <strong>{newObservationStatus.hour === null ? "--" : newObservationStatus.hour.toFixed(1)}</strong>
-              </div>
-              <label className="checkbox-field">
-                Event marker
-                <input checked={Boolean(newObservation.guideLine)} type="checkbox" title="Mark this event time with a dotted line" aria-label="Mark this event time with a dotted line" onChange={(event) => updateNewObservation("guideLine", event.target.checked)} />
-              </label>
-              <label className="entry-cervix">
-                Cervix
-                <input value={newObservation.dilation} inputMode="decimal" placeholder="0–10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateNewObservation("dilation", event.target.value)} />
-              </label>
-              <label className="entry-station">
-                Station
-                <StationSelect value={newObservation.station} onChange={(value) => updateNewObservation("station", value)} />
-              </label>
-              <label className="entry-note">
-                Timeline note
-                <input value={newObservation.note} placeholder="e.g., Oxytocin started" type="text" onChange={(event) => updateNewObservation("note", event.target.value)} />
-              </label>
-            </div>
-            {newObservationWarnings.length > 0 && (
-              <ul className="validation-list" aria-live="polite">
-                {newObservationWarnings.map((message) => (
-                  <li key={message}>{message}</li>
-                ))}
-              </ul>
-            )}
-            <div className="entry-actions">
-              <button className="ghost-button" type="button" onClick={resetNewObservation}>
-                Reset entry
-              </button>
-              <button className="primary-button" type="button" onClick={addObservation}>
-                Add to chart
-              </button>
-            </div>
-          </div>
+          <div className="desktop-entry">{renderNewObservationForm()}</div>
 
           <div className="recorded-heading">
             <h3>Recorded observations</h3>
@@ -2152,11 +2417,11 @@ export default function App() {
                           <small>Day {normalizedDay(observation.dayOffset)} · Hour {hourText}</small>
                         </span>
                         <span className="observation-metrics" aria-label="Observation values">
-                          <span>
+                          <span className="observation-metric dilation">
                             <small>Cervix</small>
                             <strong>{observation.dilation === "" ? "--" : `${observation.dilation} cm`}</strong>
                           </span>
-                          <span>
+                          <span className="observation-metric station">
                             <small>Station</small>
                             <strong>{formatStationValue(observation.station)}</strong>
                           </span>
@@ -2165,11 +2430,21 @@ export default function App() {
                           {observation.guideLine && <small>Event</small>}
                           <strong>{noteText || "No note"}</strong>
                         </span>
-                        <span className="observation-toggle" aria-hidden="true">{isExpanded ? "Close" : "Edit"}</span>
                       </button>
-                      <button className="row-delete compact-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation)}>
-                        X
-                      </button>
+                      <div className="observation-card-actions">
+                        <button
+                          className={`observation-toggle${isExpanded ? " close-toggle" : ""}`}
+                          type="button"
+                          aria-expanded={isExpanded}
+                          aria-controls={`observation-editor-${observation.id}`}
+                          onClick={() => setExpandedObservationId(isExpanded ? null : observation.id)}
+                        >
+                          {isExpanded ? "Close" : "Edit"}
+                        </button>
+                        <button className="row-delete compact-delete" type="button" title="Remove observation" aria-label="Remove observation" onClick={() => deleteObservation(observation)}>
+                          <Icon name="trash" />
+                        </button>
+                      </div>
                     </div>
 
                     {hasWarning && !isExpanded && (
@@ -2187,7 +2462,11 @@ export default function App() {
                           </label>
                           <label className="entry-day">
                             Day
-                            <input value={observation.dayOffset} inputMode="numeric" placeholder="0" type="number" min="0" step="1" onChange={(event) => updateObservation(observation.id, "dayOffset", event.target.value)} />
+                            <DaySelect
+                              value={observation.dayOffset}
+                              ariaLabel={`Day for ${formatDisplayTime(observation.time)}`}
+                              onChange={(value) => updateObservation(observation.id, "dayOffset", value)}
+                            />
                           </label>
                           <div className="computed-field">
                             <span>Hour</span>
@@ -2199,7 +2478,11 @@ export default function App() {
                           </label>
                           <label className="entry-cervix">
                             Cervix
-                            <input value={observation.dilation} inputMode="decimal" placeholder="0-10" type="number" min="0" max="10" step="0.5" onChange={(event) => updateObservation(observation.id, "dilation", event.target.value)} />
+                            <CervixSelect
+                              value={observation.dilation}
+                              ariaLabel={`Cervical dilation at ${formatDisplayTime(observation.time)}`}
+                              onChange={(value) => updateObservation(observation.id, "dilation", value)}
+                            />
                           </label>
                           <label className="entry-station">
                             Station
@@ -2239,7 +2522,7 @@ export default function App() {
             </button>
           </div>
 
-          <section className="annotation-section" aria-labelledby="annotation-heading">
+          <section className="annotation-section" id="annotations-section" aria-labelledby="annotation-heading">
             <div className="annotation-heading">
               <div>
                 <h3 id="annotation-heading">Chart annotations</h3>
@@ -2247,42 +2530,7 @@ export default function App() {
               </div>
               <span>{annotations.length} added</span>
             </div>
-            <div className="annotation-form">
-              <label>
-                Attach to observation
-                <select value={newAnnotation.observationId} onChange={(event) => selectAnnotationObservation(event.target.value)}>
-                  <option value="">Select a plotted entry</option>
-                  {observations.map((observation) => (
-                    <option key={observation.id} value={observation.id}>
-                      {formatDisplayTime(observation.time)} · Day {normalizedDay(observation.dayOffset)} · Cervix {observation.dilation || "--"} · Station {formatStationValue(observation.station)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Connect to
-                <select value={newAnnotation.targetSeries} onChange={(event) => updateNewAnnotation("targetSeries", event.target.value)}>
-                  <option value="dilation">Cervical dilation point</option>
-                  <option value="station">Station point</option>
-                </select>
-              </label>
-              <label>
-                Type
-                <select value={newAnnotation.type} onChange={(event) => updateNewAnnotation("type", event.target.value)}>
-                  <option value="clinical">Clinical note</option>
-                  <option value="medication">Medication</option>
-                  <option value="intervention">Intervention</option>
-                  <option value="outcome">Outcome / decision</option>
-                </select>
-              </label>
-              <label className="annotation-text">
-                Annotation
-                <textarea value={newAnnotation.text} rows="3" placeholder="e.g., FHR pattern, contraction findings, or clinical action taken" onChange={(event) => updateNewAnnotation("text", event.target.value)} />
-              </label>
-              <button className="primary-button annotation-add" type="button" disabled={!newAnnotation.observationId || !newAnnotation.text.trim()} onClick={addAnnotation}>
-                Add annotation
-              </button>
-            </div>
+            {renderAnnotationForm()}
 
             {annotations.length > 0 && (
               <div className="annotation-list" aria-label="Saved chart annotations">
@@ -2290,17 +2538,65 @@ export default function App() {
                   const linkedObservation = state.observations.find((observation) => observation.id === annotation.observationId);
                   const displayTime = linkedObservation?.time || annotation.time;
                   const displayDay = linkedObservation?.dayOffset ?? annotation.dayOffset;
+                  const isEditing = editingAnnotationId === annotation.id;
 
                   return (
-                    <article className={`annotation-item ${annotation.type}`} key={annotation.id}>
-                      <div>
-                        <strong>{formatDisplayTime(displayTime)} · Day {normalizedDay(displayDay)}</strong>
-                        <span>{annotationTypeLabel(annotation.type)} · {annotation.targetSeries === "station" ? "Station" : "Cervix"}</span>
-                        <p>{annotation.text}</p>
+                    <article className={`annotation-item ${annotation.type}${isEditing ? " editing" : ""}`} key={annotation.id}>
+                      <div className="annotation-item-body">
+                        <div>
+                          <strong>{formatDisplayTime(displayTime)} · Day {normalizedDay(displayDay)}</strong>
+                          <span>{annotationTypeLabel(annotation.type)} · {annotation.targetSeries === "station" ? "Station" : "Cervix"}</span>
+                          <p>{annotation.text}</p>
+                        </div>
+                        {isEditing && (
+                          <div className="annotation-edit-form" aria-label={`Edit annotation at ${formatDisplayTime(displayTime)}`}>
+                            <label>
+                              Attach to observation
+                              <select value={annotation.observationId} onChange={(event) => selectSavedAnnotationObservation(annotation.id, event.target.value)}>
+                                <option value="">Select a plotted entry</option>
+                                {observations.map((observation) => (
+                                  <option key={observation.id} value={observation.id}>
+                                    {formatDisplayTime(observation.time)} · Day {normalizedDay(observation.dayOffset)} · Cervix {observation.dilation || "--"} · Station {formatStationValue(observation.station)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Connect to
+                              <select value={annotation.targetSeries} onChange={(event) => updateAnnotation(annotation.id, "targetSeries", event.target.value)}>
+                                <option value="dilation">Cervical dilation point</option>
+                                <option value="station">Station point</option>
+                              </select>
+                            </label>
+                            <label>
+                              Type
+                              <select value={annotation.type} onChange={(event) => updateAnnotation(annotation.id, "type", event.target.value)}>
+                                <option value="clinical">Clinical note</option>
+                                <option value="medication">Medication</option>
+                                <option value="intervention">Intervention</option>
+                                <option value="outcome">Outcome / decision</option>
+                              </select>
+                            </label>
+                            <label className="annotation-edit-text">
+                              Annotation
+                              <textarea value={annotation.text} rows="3" onChange={(event) => updateAnnotation(annotation.id, "text", event.target.value)} />
+                            </label>
+                          </div>
+                        )}
                       </div>
-                      <button className="row-delete" type="button" title="Remove chart annotation" aria-label={`Remove annotation at ${formatDisplayTime(displayTime)}`} onClick={() => deleteAnnotation(annotation)}>
-                        X
-                      </button>
+                      <div className="annotation-item-actions">
+                        <button
+                          className={`ghost-button annotation-edit-toggle${isEditing ? " close-toggle" : ""}`}
+                          type="button"
+                          aria-expanded={isEditing}
+                          onClick={() => setEditingAnnotationId(isEditing ? null : annotation.id)}
+                        >
+                          {isEditing ? "Close" : "Edit"}
+                        </button>
+                        <button className="row-delete" type="button" title="Remove chart annotation" aria-label={`Remove annotation at ${formatDisplayTime(displayTime)}`} onClick={() => deleteAnnotation(annotation)}>
+                          <Icon name="trash" />
+                        </button>
+                      </div>
                     </article>
                   );
                 })}
@@ -2324,7 +2620,7 @@ export default function App() {
               </label>
               <label>
                 Day
-                <input value={newOxytocinEvent.dayOffset} inputMode="numeric" type="number" min="0" step="1" onChange={(event) => updateNewOxytocinEvent("dayOffset", event.target.value)} />
+                <DaySelect value={newOxytocinEvent.dayOffset} onChange={(value) => updateNewOxytocinEvent("dayOffset", value)} />
               </label>
               <label>
                 Action
@@ -2390,7 +2686,7 @@ export default function App() {
                       {event.note && <p>{event.note}</p>}
                     </div>
                     <button className="row-delete" type="button" title="Remove infusion event" aria-label={`Remove oxytocin event at ${formatDisplayTime(event.time)}`} onClick={() => deleteOxytocinEvent(event.id)}>
-                      X
+                      <Icon name="trash" />
                     </button>
                   </article>
                 ))}
@@ -2399,7 +2695,83 @@ export default function App() {
           </section>
           )}
         </aside>
-      </main>
+        </main>
+      </div>
+      )}
+      {!showGuide && (
+        <nav className="mobile-bottom-nav" aria-label="Mobile chart navigation">
+          <button type="button" onClick={() => scrollToMobileSection("chart-section")}>
+            Chart
+          </button>
+          <button className="mobile-add-button" type="button" onClick={openMobileEntrySheet}>
+            Add
+          </button>
+          <button type="button" onClick={() => scrollToMobileSection("annotations-section")}>
+            Annotate
+          </button>
+          <button type="button" onClick={() => scrollToMobileSection("records-section")}>
+            Records
+          </button>
+          <button type="button" onClick={() => scrollToMobileSection("patient-section")}>
+            Patient
+          </button>
+        </nav>
+      )}
+      {showChartViewer && (
+        <div className="chart-viewer-backdrop" role="presentation" onMouseDown={() => setShowChartViewer(false)}>
+          <section className="chart-viewer" role="dialog" aria-modal="true" aria-labelledby="chart-viewer-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="chart-viewer-header">
+              <div>
+                <p className="eyebrow">Expanded chart</p>
+                <h2 id="chart-viewer-title">Friedman&apos;s Curve</h2>
+              </div>
+              <div className="chart-viewer-actions">
+                <span className="chart-zoom-readout" aria-live="polite">{Math.round(chartZoom * 100)}%</span>
+                <button className="ghost-button" type="button" onClick={() => setShowChartViewer(false)}>
+                  Close
+                </button>
+              </div>
+            </div>
+            <div
+              className="chart-viewer-scroller"
+              onDoubleClick={toggleChartZoom}
+              onTouchStart={startChartPinch}
+              onTouchMove={moveChartPinch}
+              onTouchEnd={endChartPinch}
+              onTouchCancel={endChartPinch}
+            >
+              <div className="chart-viewer-canvas" style={{ width: `${Math.round(chartZoom * 100)}%` }}>
+                <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} chartId="expandedCurveChart" />
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+      {showMobileEntrySheet && (
+        <div className="mobile-entry-backdrop" role="presentation" onMouseDown={() => setShowMobileEntrySheet(false)}>
+          <section className="mobile-entry-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-entry-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="mobile-sheet-heading">
+              <h2 id="mobile-entry-title">Add observation</h2>
+              <button className="row-delete close-button" type="button" aria-label="Close add observation" onClick={() => setShowMobileEntrySheet(false)}>
+                X
+              </button>
+            </div>
+            {renderNewObservationForm("sheet")}
+          </section>
+        </div>
+      )}
+      {showMobileAnnotationSheet && (
+        <div className="mobile-entry-backdrop" role="presentation" onMouseDown={() => setShowMobileAnnotationSheet(false)}>
+          <section className="mobile-entry-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-annotation-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="mobile-sheet-heading">
+              <h2 id="mobile-annotation-title">Add annotation</h2>
+              <button className="row-delete close-button" type="button" aria-label="Close add annotation" onClick={() => setShowMobileAnnotationSheet(false)}>
+                X
+              </button>
+            </div>
+            {renderAnnotationForm("sheet")}
+          </section>
+        </div>
       )}
       {confirmation && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setConfirmation(null)}>
