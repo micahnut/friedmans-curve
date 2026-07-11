@@ -12,9 +12,9 @@
   --action-ink: #364152;
   --action-hover-bg: #e9edf2;
   --action-hover-border: #c5ccd6;
-  --observation-card-bg: #ffffff;
-  --observation-card-border: #d7dce3;
-  --observation-card-hover: #f6f8fa;
+  --observation-card-bg: #f3f8ff;
+  --observation-card-border: #bcd0ea;
+  --observation-card-hover: #eaf3ff;
   --note-bg: #f8f6f2;
   --note-border: #e2ddd3;
   --note-ink: #4b4034;
@@ -111,6 +111,8 @@ textarea:focus-visible {
 .title-utility-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 7px;
 }
 
@@ -730,6 +732,10 @@ td select {
   position: relative;
 }
 
+.restore-menu {
+  position: relative;
+}
+
 .export-button {
   display: inline-flex;
   align-items: center;
@@ -772,6 +778,81 @@ td select {
   border-radius: 9px;
   background: var(--surface);
   box-shadow: var(--shadow);
+}
+
+.restore-options {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  gap: 6px;
+  width: min(360px, calc(100vw - 24px));
+  padding: 8px;
+  border: 1px solid #a9d9b8;
+  border-radius: 9px;
+  background: #f4fbf6;
+  box-shadow: 0 16px 40px rgba(30, 92, 52, 0.16);
+}
+
+.restore-menu-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 4px 6px;
+  border-bottom: 1px solid #cbe8d2;
+  color: #2f6842;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.restore-menu-heading span {
+  white-space: nowrap;
+}
+
+.saved-chart-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.saved-chart-row > button:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  text-align: left;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.saved-chart-row > button:first-child:hover,
+.saved-chart-row > button:first-child:focus-visible {
+  background: #eaf7ee;
+  transform: none;
+}
+
+.saved-chart-row span,
+.restore-empty {
+  color: #4d765c;
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.saved-chart-delete {
+  align-self: center;
+}
+
+.restore-empty {
+  padding: 12px 10px;
+  text-align: center;
 }
 
 .export-options button {
@@ -828,6 +909,34 @@ td select {
 
 .danger-button:hover {
   background: #ffd8d8;
+}
+
+.app-toast {
+  position: fixed;
+  z-index: 70;
+  right: 18px;
+  bottom: 18px;
+  max-width: min(360px, calc(100vw - 28px));
+  padding: 11px 14px;
+  border: 1px solid #cdd9ea;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #17202b;
+  box-shadow: 0 16px 38px rgba(22, 27, 34, 0.18);
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.app-toast.success {
+  border-color: #b9d6c3;
+  background: #f2fbf5;
+  color: #235334;
+}
+
+.app-toast.warning {
+  border-color: #e9cc7a;
+  background: #fff8e2;
+  color: #6b4c00;
 }
 
 .modal-backdrop {
@@ -1131,18 +1240,20 @@ td select {
 
 .observation-list {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .observation-card {
   border: 1px solid var(--observation-card-border);
+  border-left: 4px solid #4f83c3;
   border-radius: 8px;
   background: var(--observation-card-bg);
+  box-shadow: 0 8px 20px rgba(31, 78, 121, 0.06);
   overflow: hidden;
 }
 
 .observation-card.expanded {
-  background: #fbfcfd;
+  background: #f8fbff;
 }
 
 .observation-summary-row {
@@ -1161,7 +1272,7 @@ td select {
   min-width: 0;
   padding: 8px 10px;
   border-radius: 7px;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.62);
   color: var(--ink);
   text-align: left;
 }
@@ -1205,9 +1316,9 @@ td select {
 .observation-metric {
   min-height: 46px;
   padding: 7px 8px;
-  border: 1px solid var(--line);
+  border: 1px solid #d3dfef;
   border-radius: 7px;
-  background: #f8fafc;
+  background: #ffffff;
 }
 
 .observation-metric.dilation {
@@ -1821,6 +1932,25 @@ td select {
     left: auto;
   }
 
+  .restore-options {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    left: auto;
+    width: min(300px, calc(100vw - 24px));
+    max-height: min(58vh, 420px);
+    overflow-y: auto;
+  }
+
+  .saved-chart-row > button:first-child {
+    font-size: 0.78rem;
+    line-height: 1.25;
+  }
+
+  .saved-chart-row span {
+    font-size: 0.66rem;
+  }
+
   .panel {
     padding: 14px;
   }
@@ -2052,6 +2182,14 @@ td select {
 
   .mobile-bottom-nav button:hover {
     transform: none;
+  }
+
+  .app-toast {
+    right: 12px;
+    bottom: calc(82px + env(safe-area-inset-bottom));
+    left: 12px;
+    max-width: none;
+    text-align: center;
   }
 
   .mobile-bottom-nav .mobile-add-button {
