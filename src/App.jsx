@@ -1211,8 +1211,9 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
               y1={grid.top}
               x2={x}
               y2={grid.bottom}
-              stroke={isEdge ? "#14181d" : "#252b33"}
-              strokeWidth={isEdge ? 2 : 1.2}
+              stroke={isEdge ? "#1d2530" : "#9aa3ad"}
+              strokeWidth={isEdge ? 1.7 : 0.8}
+              opacity={isEdge ? "0.82" : "0.26"}
             />
             {hour > 0 && (
               <text x={x} y={grid.bottom + 34} textAnchor="middle" fontSize="16" fontWeight="900" fill="#111820">
@@ -1238,8 +1239,9 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
               y1={y}
               x2={grid.right}
               y2={y}
-              stroke={isEdge ? "#14181d" : "#252b33"}
-              strokeWidth={isEdge ? 2 : 1.2}
+              stroke={isEdge ? "#1d2530" : "#9aa3ad"}
+              strokeWidth={isEdge ? 1.7 : 0.8}
+              opacity={isEdge ? "0.82" : "0.26"}
             />
             <text x={grid.left - 16} y={y + 5} textAnchor="end" fontSize="16" fontWeight="900" fill="#111820">
               {dilation}
@@ -1275,10 +1277,10 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
           x2={line.x}
           y2={grid.bottom}
           stroke="#1f2933"
-          strokeWidth="2"
-          strokeDasharray="7 8"
+          strokeWidth="1.2"
+          strokeDasharray="4 7"
           strokeLinecap="round"
-          opacity="0.72"
+          opacity="0.46"
         />
       ))}
       {SHOW_OXYTOCIN_FEATURE && <OxytocinTrack bands={data.oxytocinBands} changes={data.oxytocinChanges} grid={grid} />}
@@ -1385,9 +1387,9 @@ function OxytocinNoteHighlights({ highlights, grid }) {
               x2={highlight.x1}
               y2={grid.bottom}
               stroke="#c89200"
-              strokeWidth="1.2"
-              strokeDasharray="5 7"
-              opacity="0.58"
+              strokeWidth="1.1"
+              strokeDasharray="4 7"
+              opacity="0.42"
             />
             {highlight.ended && (
               <line
@@ -1396,9 +1398,9 @@ function OxytocinNoteHighlights({ highlights, grid }) {
                 x2={highlight.x2}
                 y2={grid.bottom}
                 stroke="#c89200"
-                strokeWidth="1.2"
-                strokeDasharray="5 7"
-                opacity="0.48"
+                strokeWidth="1.1"
+                strokeDasharray="4 7"
+                opacity="0.38"
               />
             )}
             <text x={labelX} y={grid.bottom - 36} textAnchor="middle" fontSize="9" fontWeight="900" fill="#795600">
@@ -1460,7 +1462,7 @@ function OxytocinTrack({ bands, changes, grid }) {
 
         return (
           <g key={change.id}>
-            <line x1={change.x} y1={grid.top} x2={change.x} y2={grid.bottom} stroke="#c89200" strokeWidth="1.2" strokeDasharray="4 6" opacity="0.55" />
+            <line x1={change.x} y1={grid.top} x2={change.x} y2={grid.bottom} stroke="#c89200" strokeWidth="1.1" strokeDasharray="4 7" opacity="0.42" />
             <rect x={change.x - 4} y={trackY - 4} width="8" height="8" rx="1" fill={isStop ? "#ffffff" : "#c89200"} stroke="#8a6400" strokeWidth="1.2" />
             <text x={change.x + 5} y={trackY - 9 - (index % 3) * 11} fontSize="8.5" fontWeight="900" fill="#795600">
               {change.timeLabel} · {detail}
@@ -1602,10 +1604,10 @@ function StartConnectors({ data }) {
           x2={dilationStart.x}
           y2={dilationStart.y}
           stroke="#0f63ce"
-          strokeWidth="2.4"
-          strokeDasharray="5 8"
+          strokeWidth="1.5"
+          strokeDasharray="4 7"
           strokeLinecap="round"
-          opacity="0.72"
+          opacity="0.58"
         />
       )}
       {stationStart && stationStart.hour > 0 && (
@@ -1615,10 +1617,10 @@ function StartConnectors({ data }) {
           x2={stationStart.x}
           y2={stationStart.y}
           stroke="#c62828"
-          strokeWidth="2.4"
-          strokeDasharray="5 8"
+          strokeWidth="1.5"
+          strokeDasharray="4 7"
           strokeLinecap="round"
-          opacity="0.72"
+          opacity="0.58"
         />
       )}
     </>
@@ -1633,7 +1635,7 @@ function Series({ points, color, marker, activeObservationId, onPointEnter, onPo
           d={formatPath(points)}
           fill="none"
           stroke={color}
-          strokeWidth="4"
+          strokeWidth="5.8"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -1650,7 +1652,7 @@ function Series({ points, color, marker, activeObservationId, onPointEnter, onPo
             r={isActive ? "9" : "8"}
             fill="#fff"
             stroke={color}
-            strokeWidth={isActive ? "5" : "3"}
+            strokeWidth={isActive ? "5.8" : "4"}
             tabIndex="0"
             aria-label={`Cervical dilation: ${point.value} cm at ${point.time}`}
             onMouseEnter={() => onPointEnter(point, "Cervical dilation")}
@@ -1669,8 +1671,8 @@ function Series({ points, color, marker, activeObservationId, onPointEnter, onPo
             onMouseLeave={onPointLeave}
             onBlur={onPointLeave}
           >
-            <line x1={point.x - 9} y1={point.y - 9} x2={point.x + 9} y2={point.y + 9} stroke={color} strokeWidth={isActive ? "5" : "3"} strokeLinecap="round" />
-            <line x1={point.x + 9} y1={point.y - 9} x2={point.x - 9} y2={point.y + 9} stroke={color} strokeWidth={isActive ? "5" : "3"} strokeLinecap="round" />
+            <line x1={point.x - 9} y1={point.y - 9} x2={point.x + 9} y2={point.y + 9} stroke={color} strokeWidth={isActive ? "5.8" : "4"} strokeLinecap="round" />
+            <line x1={point.x + 9} y1={point.y - 9} x2={point.x - 9} y2={point.y + 9} stroke={color} strokeWidth={isActive ? "5.8" : "4"} strokeLinecap="round" />
           </g>
         );
       })}
