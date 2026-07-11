@@ -2833,14 +2833,14 @@ export default function App() {
         <textarea value={newAnnotation.text} rows="3" placeholder="e.g., FHR pattern, contraction findings, or clinical action taken" onChange={(event) => updateNewAnnotation("text", event.target.value)} />
       </label>
       <div className="annotation-actions">
+        <button className="ghost-button annotation-reset" type="button" onClick={resetNewAnnotation}>
+          Reset entry
+        </button>
         <button className="primary-button annotation-add" type="button" disabled={!newAnnotation.observationId || !newAnnotation.text.trim()} onClick={() => {
           addAnnotation();
           if (variant === "sheet") setShowMobileAnnotationSheet(false);
         }}>
           Add annotation
-        </button>
-        <button className="ghost-button annotation-reset" type="button" onClick={resetNewAnnotation}>
-          Reset entry
         </button>
       </div>
     </div>
