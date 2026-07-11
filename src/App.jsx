@@ -464,12 +464,27 @@ function normalizedDay(value) {
   return String(day === null ? 0 : Math.max(0, day));
 }
 
+const SOFT_OBSERVATION_WARNINGS = new Set([
+  "Cervical dilation decreased from an earlier observation. Recheck the entry.",
+  "Station moved back from an earlier observation. Recheck the entry."
+]);
+
+function isBlockingObservationWarning(message) {
+  return !SOFT_OBSERVATION_WARNINGS.has(message);
+}
+
+function observationBlockingWarnings(observation, startTime, observations = [], currentId = null) {
+  return observationWarnings(observation, startTime, observations, currentId).filter(isBlockingObservationWarning);
+}
+
 function observationWarnings(observation, startTime, observations = [], currentId = null) {
   const status = pointStatus(observation, startTime);
   const messages = [];
   const currentMinutes = minutesFromTime(observation.time);
   const startMinutes = minutesFromTime(startTime);
   const day = numberOrNull(observation.dayOffset);
+  const hasDilation = status.dilation !== null;
+  const hasStation = status.station !== null;
   const duplicate = observation.time
     ? observations.some((item) =>
         item.id !== currentId &&
@@ -498,7 +513,40 @@ function observationWarnings(observation, startTime, observations = [], currentI
     messages.push("Station should be between -5 and +5.");
   }
 
-  if (status.dilation === null && status.station === null && !observation.note.trim() && !observation.guideLine) {
+  if (hasDilation !== hasStation) {
+    messages.push("Enter both cervix and station for a clinical observation.");
+  }
+
+  if (hasDilation && hasStation && status.validDilation && status.validStation && status.dilation <= 3 && status.station >= 3) {
+    messages.push("Unusual combination detected: station is very low while cervix is not yet advanced. Recheck the entry.");
+  }
+
+  if (hasDilation && hasStation && status.validDilation && status.validTime && status.hour !== null) {
+    const previousStatuses = sortedObservations(observations, startTime)
+      .filter((item) => item.id !== currentId)
+      .map((item) => pointStatus(item, startTime))
+      .filter((itemStatus) =>
+        itemStatus.hour !== null &&
+        itemStatus.validTime &&
+        itemStatus.hour < status.hour
+      );
+    const previousDilation = previousStatuses
+      .filter((itemStatus) => itemStatus.validDilation && itemStatus.dilation !== null)
+      .reduce((highest, itemStatus) => Math.max(highest, itemStatus.dilation), -Infinity);
+    const previousStation = previousStatuses
+      .filter((itemStatus) => itemStatus.validStation && itemStatus.station !== null)
+      .reduce((highest, itemStatus) => Math.max(highest, itemStatus.station), -Infinity);
+
+    if (previousDilation !== -Infinity && status.dilation < previousDilation) {
+      messages.push("Cervical dilation decreased from an earlier observation. Recheck the entry.");
+    }
+
+    if (previousStation !== -Infinity && status.station < previousStation) {
+      messages.push("Station moved back from an earlier observation. Recheck the entry.");
+    }
+  }
+
+  if (!hasDilation && !hasStation && !observation.note.trim() && !observation.guideLine) {
     messages.push("Enter cervix, station, a note, or mark it as an event.");
   }
 
@@ -657,6 +705,7 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
       }
 
       return [{
+        observationId: observation.id,
         x: xForHour(status.hour),
         time: formatDisplayTime(observation.time),
         text: observation.note.trim()
@@ -690,8 +739,9 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
 
   sortedObservations(observations, patient.startTime).forEach((observation) => {
     const status = pointStatus(observation, patient.startTime);
+    const blockingWarnings = observationBlockingWarnings(observation, patient.startTime, observations, observation.id);
 
-    if (!status.validTime || !status.validDilation || !status.validStation) {
+    if (!status.validTime || !status.validDilation || !status.validStation || blockingWarnings.length > 0) {
       warningCount += 1;
       return;
     }
@@ -731,6 +781,7 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
       const isOxytocinStopNote = noteStopsOxytocin(observation.note);
 
       notes.push({
+        observationId: observation.id,
         x: xForHour(status.hour),
         hour: status.hour,
         time: formatDisplayTime(observation.time),
@@ -1017,7 +1068,7 @@ function formatDisplayDate(value) {
   });
 }
 
-function Chart({ patient, observations, annotations, oxytocinEvents, chartRef, chartId = "curveChart" }) {
+function Chart({ patient, observations, annotations, oxytocinEvents, activeObservationId, activeAnnotationId, chartRef, chartId = "curveChart" }) {
   const data = useMemo(
     () => buildSvgData(patient, observations, annotations, oxytocinEvents),
     [patient, observations, annotations, oxytocinEvents]
@@ -1231,13 +1282,14 @@ function Chart({ patient, observations, annotations, oxytocinEvents, chartRef, c
         />
       ))}
       {SHOW_OXYTOCIN_FEATURE && <OxytocinTrack bands={data.oxytocinBands} changes={data.oxytocinChanges} grid={grid} />}
-      <NoteLabels notes={data.notes} grid={grid} />
-      <ChartAnnotationLabels annotations={data.annotations} grid={grid} dilationPoints={data.dilationPoints} stationPoints={data.stationPoints} />
+      <NoteLabels notes={data.notes} grid={grid} activeObservationId={activeObservationId} />
+      <ChartAnnotationLabels annotations={data.annotations} grid={grid} dilationPoints={data.dilationPoints} stationPoints={data.stationPoints} activeAnnotationId={activeAnnotationId} />
       <StartConnectors data={data} />
       <Series
         points={data.dilationPoints.map((point) => ({ ...point, time: data.timeFromHour(point.hour) }))}
         color="#0f63ce"
         marker="circle"
+        activeObservationId={activeObservationId}
         onPointEnter={showPointDetails}
         onPointLeave={() => setHoveredPoint(null)}
       />
@@ -1245,6 +1297,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, chartRef, c
         points={data.stationPoints.map((point) => ({ ...point, time: data.timeFromHour(point.hour) }))}
         color="#c62828"
         marker="cross"
+        activeObservationId={activeObservationId}
         onPointEnter={showPointDetails}
         onPointLeave={() => setHoveredPoint(null)}
       />
@@ -1282,7 +1335,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, chartRef, c
   );
 }
 
-function NoteLabels({ notes, grid }) {
+function NoteLabels({ notes, grid, activeObservationId }) {
   const { layouts, laneStride } = positionNoteLabels(prepareNoteLabels(notes), grid);
 
   return layouts.map((note) => {
@@ -1291,11 +1344,12 @@ function NoteLabels({ notes, grid }) {
     const fill = note.isOxytocinNote ? "#fef3c7" : "#f8f6f2";
     const stroke = note.isOxytocinNote ? "#d6a72c" : "#e2ddd3";
     const ink = note.isOxytocinNote ? "#6f4b00" : "#4b4034";
+    const isActive = activeObservationId && note.observationId === activeObservationId;
 
     return (
-      <g key={`${note.x}-${note.text}`} data-presentation-note="true" data-presentation-note-y={y}>
-        <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke={stroke} strokeWidth="1" />
-        <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth="1" opacity="0.98" />
+      <g key={`${note.x}-${note.text}`} className={isActive ? "active-chart-callout" : ""} data-presentation-note="true" data-presentation-note-y={y}>
+        <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke={stroke} strokeWidth={isActive ? "2.4" : "1"} />
+        <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.4" : "1"} opacity="0.98" />
         <text x={note.labelX + 9} y={y + 15} fontSize="10" fontWeight="800" fill={ink}>
           {note.labelLines.map((line, index) => (
             <tspan key={`${line}-${index}`} x={note.labelX + 9} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
@@ -1424,7 +1478,7 @@ function OxytocinTrack({ bands, changes, grid }) {
   );
 }
 
-function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoints }) {
+function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoints, activeAnnotationId }) {
   const styles = {
     clinical: { fill: "#fce7f3", stroke: "#db8fba", label: "Clinical note" },
     medication: { fill: "#fef3c7", stroke: "#d6a72c", label: "Medication" },
@@ -1466,6 +1520,7 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
 
   return annotations.slice(0, 12).map((annotation) => {
     const style = styles[annotation.type] || styles.clinical;
+    const isActive = activeAnnotationId && annotation.id === activeAnnotationId;
     const targetLabel = annotation.targetSeries === "station" ? "station" : "cervix";
     const title = `${annotation.time} · ${style.label} · ${targetLabel}`;
     const bodyLines = wrapText(annotation.text, 31);
@@ -1511,17 +1566,17 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
         : clamp(annotation.anchorY, placement.y + 12, placement.y + height - 12);
 
     return (
-      <g key={annotation.id}>
+      <g key={annotation.id} className={isActive ? "active-chart-callout" : ""}>
         <line
           x1={connectorX}
           y1={connectorY}
           x2={annotation.x}
           y2={annotation.anchorY}
           stroke={style.stroke}
-          strokeWidth="1.5"
+          strokeWidth={isActive ? "3" : "1.5"}
           markerEnd="url(#annotation-arrow)"
         />
-        <rect x={placement.x} y={placement.y} width={boxWidth} height={height} rx="5" fill={style.fill} stroke={style.stroke} strokeWidth="1.2" opacity="0.96" />
+        <rect x={placement.x} y={placement.y} width={boxWidth} height={height} rx="5" fill={style.fill} stroke={style.stroke} strokeWidth={isActive ? "2.8" : "1.2"} opacity="0.96" />
         <text x={placement.x + 10} y={placement.y + 17} fontSize="10" fontWeight="900" fill="#28313d">
           {title}
         </text>
@@ -1573,7 +1628,7 @@ function StartConnectors({ data }) {
   );
 }
 
-function Series({ points, color, marker, onPointEnter, onPointLeave }) {
+function Series({ points, color, marker, activeObservationId, onPointEnter, onPointLeave }) {
   return (
     <>
       {points.length >= 2 && (
@@ -1586,17 +1641,19 @@ function Series({ points, color, marker, onPointEnter, onPointLeave }) {
           strokeLinejoin="round"
         />
       )}
-      {points.map((point, index) =>
-        marker === "circle" ? (
+      {points.map((point, index) => {
+        const isActive = activeObservationId && point.observationId === activeObservationId;
+
+        return marker === "circle" ? (
           <circle
             key={`${marker}-${index}`}
-            className="chart-point"
+            className={`chart-point${isActive ? " active-chart-point" : ""}`}
             cx={point.x}
             cy={point.y}
-            r="8"
+            r={isActive ? "9" : "8"}
             fill="#fff"
             stroke={color}
-            strokeWidth="3"
+            strokeWidth={isActive ? "5" : "3"}
             tabIndex="0"
             aria-label={`Cervical dilation: ${point.value} cm at ${point.time}`}
             onMouseEnter={() => onPointEnter(point, "Cervical dilation")}
@@ -1607,7 +1664,7 @@ function Series({ points, color, marker, onPointEnter, onPointLeave }) {
         ) : (
           <g
             key={`${marker}-${index}`}
-            className="chart-point"
+            className={`chart-point${isActive ? " active-chart-point" : ""}`}
             tabIndex="0"
             aria-label={`Fetal station: ${point.value} at ${point.time}`}
             onMouseEnter={() => onPointEnter(point, "Fetal station")}
@@ -1615,11 +1672,11 @@ function Series({ points, color, marker, onPointEnter, onPointLeave }) {
             onMouseLeave={onPointLeave}
             onBlur={onPointLeave}
           >
-            <line x1={point.x - 9} y1={point.y - 9} x2={point.x + 9} y2={point.y + 9} stroke={color} strokeWidth="3" strokeLinecap="round" />
-            <line x1={point.x + 9} y1={point.y - 9} x2={point.x - 9} y2={point.y + 9} stroke={color} strokeWidth="3" strokeLinecap="round" />
+            <line x1={point.x - 9} y1={point.y - 9} x2={point.x + 9} y2={point.y + 9} stroke={color} strokeWidth={isActive ? "5" : "3"} strokeLinecap="round" />
+            <line x1={point.x + 9} y1={point.y - 9} x2={point.x - 9} y2={point.y + 9} stroke={color} strokeWidth={isActive ? "5" : "3"} strokeLinecap="round" />
           </g>
-        )
-      )}
+        );
+      })}
     </>
   );
 }
@@ -1878,6 +1935,10 @@ export default function App() {
   const [notification, setNotification] = useState(null);
   const [expandedObservationId, setExpandedObservationId] = useState(null);
   const [editingAnnotationId, setEditingAnnotationId] = useState(null);
+  const [newObservationAttempted, setNewObservationAttempted] = useState(false);
+  const [useSheetForms, setUseSheetForms] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 1279px)").matches : false
+  );
   const chartRef = useRef(null);
   const exportMenuRef = useRef(null);
   const restoreMenuRef = useRef(null);
@@ -1901,8 +1962,10 @@ export default function App() {
     [state.observations, state.patient.startTime]
   );
   const newObservationStatus = pointStatus(newObservation, state.patient.startTime);
-  const newObservationWarnings = observationWarnings(newObservation, state.patient.startTime, state.observations).filter(
-    (message) => message !== "Enter cervix, station, a note, or mark it as an event."
+  const newObservationValidation = observationWarnings(newObservation, state.patient.startTime, state.observations);
+  const newObservationBlockingValidation = newObservationValidation.filter(isBlockingObservationWarning);
+  const newObservationWarnings = newObservationValidation.filter(
+    (message) => newObservationAttempted || message !== "Enter cervix, station, a note, or mark it as an event."
   );
   const newOxytocinWarnings = oxytocinEventWarnings(newOxytocinEvent, oxytocinEvents, state.patient.startTime);
   const confirmationType = confirmation?.type;
@@ -2026,6 +2089,16 @@ export default function App() {
       document.removeEventListener("keydown", closeRestoreMenu);
     };
   }, [showRestoreMenu]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1279px)");
+    const updateSheetMode = () => setUseSheetForms(media.matches);
+
+    updateSheetMode();
+    media.addEventListener("change", updateSheetMode);
+
+    return () => media.removeEventListener("change", updateSheetMode);
+  }, []);
 
   useEffect(() => {
     if (!confirmation) return undefined;
@@ -2239,6 +2312,12 @@ export default function App() {
   };
 
   const addObservation = () => {
+    if (newObservationBlockingValidation.length > 0) {
+      setNewObservationAttempted(true);
+      notify("Check the observation entry before adding.", "warning");
+      return;
+    }
+
     const observation = createObservation(newObservation);
     const nextObservations = [...state.observations, observation];
 
@@ -2247,6 +2326,7 @@ export default function App() {
       observations: [...current.observations, observation]
     }));
     setNewObservation(nextObservationDraft(nextObservations, state.patient.startTime));
+    setNewObservationAttempted(false);
     setExpandedObservationId(observation.id);
     setShowMobileEntrySheet(false);
     notify("Observation added.");
@@ -2254,11 +2334,13 @@ export default function App() {
 
   const resetNewObservation = () => {
     setNewObservation(nextObservationDraft(state.observations, state.patient.startTime));
+    setNewObservationAttempted(false);
   };
 
   const confirmClearObservations = () => {
     setState((current) => ({ ...current, observations: [], annotations: [] }));
     setNewObservation(nextObservationDraft([], state.patient.startTime));
+    setNewObservationAttempted(false);
     setExpandedObservationId(null);
     setEditingAnnotationId(null);
     notify("Observations and annotations cleared.");
@@ -2531,6 +2613,24 @@ export default function App() {
     setShowMobileAnnotationSheet(true);
   };
 
+  const openAddEntry = () => {
+    if (useSheetForms) {
+      openMobileEntrySheet();
+      return;
+    }
+
+    scrollToMobileSection("records-section");
+  };
+
+  const openAnnotationEntry = () => {
+    if (useSheetForms) {
+      openMobileAnnotationSheet();
+      return;
+    }
+
+    scrollToMobileSection("annotations-section");
+  };
+
   const openChartViewer = () => {
     setChartZoom(1);
     setShowChartViewer(true);
@@ -2616,7 +2716,7 @@ export default function App() {
   );
 
   const renderAnnotationForm = (variant = "inline") => (
-    <div className={`annotation-form ${variant === "sheet" ? "mobile-annotation-form" : ""}`}>
+    <div className={`annotation-form ${variant === "sheet" ? "mobile-annotation-form" : "inline-annotation-form"}`}>
       <label>
         Attach to observation
         <select value={newAnnotation.observationId} onChange={(event) => selectAnnotationObservation(event.target.value)}>
@@ -2775,10 +2875,10 @@ export default function App() {
           <button type="button" onClick={() => scrollToMobileSection("chart-section")}>
             <span>Chart</span>
           </button>
-          <button type="button" onClick={() => scrollToMobileSection("records-section")}>
+          <button className="rail-add-button" type="button" onClick={openAddEntry}>
             <span>Add</span>
           </button>
-          <button type="button" onClick={() => scrollToMobileSection("annotations-section")}>
+          <button type="button" onClick={openAnnotationEntry}>
             <span>Annotate</span>
           </button>
           <button type="button" onClick={() => scrollToMobileSection("records-section")}>
@@ -2874,7 +2974,7 @@ export default function App() {
               openChartViewer();
             }
           }}>
-            <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} chartRef={chartRef} />
+            <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} activeObservationId={expandedObservationId} activeAnnotationId={editingAnnotationId} chartRef={chartRef} />
           </div>
         </section>
 
@@ -3010,7 +3110,7 @@ export default function App() {
             </div>
           ) : (
             <div className="empty-state">
-              No observations yet. Fill out the new observation form above, then tap Add to chart.
+              No observations yet. Tap Add to create the first chart entry.
             </div>
           )}
 
@@ -3201,10 +3301,10 @@ export default function App() {
           <button type="button" onClick={() => scrollToMobileSection("chart-section")}>
             Chart
           </button>
-          <button className="mobile-add-button" type="button" onClick={openMobileEntrySheet}>
+          <button className="mobile-add-button" type="button" onClick={openAddEntry}>
             Add
           </button>
-          <button type="button" onClick={() => scrollToMobileSection("annotations-section")}>
+          <button type="button" onClick={openAnnotationEntry}>
             Annotate
           </button>
           <button type="button" onClick={() => scrollToMobileSection("records-section")}>
@@ -3239,7 +3339,7 @@ export default function App() {
               onTouchCancel={endChartPinch}
             >
               <div className="chart-viewer-canvas" style={{ width: `${Math.round(chartZoom * 100)}%` }}>
-                <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} chartId="expandedCurveChart" />
+                <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} activeObservationId={expandedObservationId} activeAnnotationId={editingAnnotationId} chartId="expandedCurveChart" />
               </div>
             </div>
           </section>
