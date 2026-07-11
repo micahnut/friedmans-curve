@@ -131,8 +131,16 @@ function makeSampleState() {
   const sample = makeDefaultState();
   const observations = [
     createObservation({ time: "07:30", dayOffset: "0", dilation: "4", station: "-3", note: "Admission" }),
-    createObservation({ time: "10:30", dayOffset: "0", dilation: "5", station: "-3", note: "oxytocin @ 8gtt/min" }),
-    createObservation({ time: "13:30", dayOffset: "0", dilation: "5", station: "-3", note: "" }),
+    createObservation({ time: "10:30", dayOffset: "0", dilation: "5", station: "-3", note: "Oxytocin started @ 8 gtts/min" }),
+    createObservation({ time: "10:45", dayOffset: "0", note: "Titrated oxy to 12 gtts/min" }),
+    createObservation({ time: "11:00", dayOffset: "0", note: "Titrated oxytocin to 16 gtts/min" }),
+    createObservation({ time: "11:15", dayOffset: "0", note: "Titrated oxy to 20 gtts/min" }),
+    createObservation({ time: "11:30", dayOffset: "0", note: "Titrated oxytocin to 24 gtts/min" }),
+    createObservation({ time: "12:30", dayOffset: "0", note: "Oxy stopped due to tachysystole" }),
+    createObservation({ time: "13:00", dayOffset: "0", note: "Oxytocin resumed @ 8 gtts/min" }),
+    createObservation({ time: "13:15", dayOffset: "0", note: "Titrated oxy to 12 gtts/min" }),
+    createObservation({ time: "13:30", dayOffset: "0", dilation: "5", station: "-3", note: "Titrated oxytocin to 16 gtts/min" }),
+    createObservation({ time: "14:00", dayOffset: "0", note: "Oxytocin stopped" }),
     createObservation({ time: "15:00", dayOffset: "0", dilation: "7", station: "-2", guideLine: true, note: "evening primerose 3 caps" }),
     createObservation({ time: "15:30", dayOffset: "0", dilation: "8", station: "-1" }),
     createObservation({ time: "15:50", dayOffset: "0", dilation: "10", station: "0", note: "mount" }),
@@ -162,7 +170,7 @@ function makeSampleState() {
         text: "FHR 140 bpm with moderate variability; contractions every 5–6 minutes."
       }),
       createChartAnnotation({
-        observationId: observations[4].id,
+        observationId: observations[12].id,
         time: "15:30",
         dayOffset: "0",
         targetSeries: "dilation",
@@ -172,9 +180,15 @@ function makeSampleState() {
     ],
     oxytocinEvents: [
       createOxytocinEvent({ time: "10:30", dayOffset: "0", action: "start", rate: "8", unit: "gtt/min", note: "Oxytocin started" }),
-      createOxytocinEvent({ time: "13:30", dayOffset: "0", action: "increase", rate: "12", unit: "gtt/min", note: "Titrated" }),
-      createOxytocinEvent({ time: "15:00", dayOffset: "0", action: "increase", rate: "16", unit: "gtt/min", note: "Titrated" }),
-      createOxytocinEvent({ time: "16:10", dayOffset: "0", action: "stop", rate: "", unit: "gtt/min", note: "Stopped after delivery" })
+      createOxytocinEvent({ time: "10:45", dayOffset: "0", action: "increase", rate: "12", unit: "gtt/min", note: "Titrated" }),
+      createOxytocinEvent({ time: "11:00", dayOffset: "0", action: "increase", rate: "16", unit: "gtt/min", note: "Titrated" }),
+      createOxytocinEvent({ time: "11:15", dayOffset: "0", action: "increase", rate: "20", unit: "gtt/min", note: "Titrated" }),
+      createOxytocinEvent({ time: "11:30", dayOffset: "0", action: "increase", rate: "24", unit: "gtt/min", note: "Titrated" }),
+      createOxytocinEvent({ time: "12:30", dayOffset: "0", action: "stop", rate: "", unit: "gtt/min", note: "Stopped due to tachysystole" }),
+      createOxytocinEvent({ time: "13:00", dayOffset: "0", action: "resume", rate: "8", unit: "gtt/min", note: "Resumed" }),
+      createOxytocinEvent({ time: "13:15", dayOffset: "0", action: "increase", rate: "12", unit: "gtt/min", note: "Titrated" }),
+      createOxytocinEvent({ time: "13:30", dayOffset: "0", action: "increase", rate: "16", unit: "gtt/min", note: "Titrated" }),
+      createOxytocinEvent({ time: "14:00", dayOffset: "0", action: "stop", rate: "", unit: "gtt/min", note: "Stopped" })
     ]
   };
 }
@@ -287,6 +301,17 @@ function formatStationValue(value) {
   if (station === null) return "--";
   if (station > 0) return `+${station}`;
   return String(station);
+}
+
+function noteMentionsOxytocin(note = "") {
+  return /\b(?:oxy|oxytocin)\b/i.test(note);
+}
+
+function noteStopsOxytocin(note = "") {
+  const mentionsOxytocin = noteMentionsOxytocin(note);
+  const hasStopWord = /\b(?:stop|stopped|off|discontinued|dc|d\/c|held|paused)\b/i.test(note);
+
+  return mentionsOxytocin && hasStopWord;
 }
 
 function StationSelect({ value, onChange, ariaLabel = "Station" }) {
@@ -576,6 +601,8 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
   const guideLines = [];
   const notes = [];
   const chartAnnotations = [];
+  const oxytocinNoteHighlights = [];
+  const oxytocinNoteEvents = [];
   let validCount = 0;
   let warningCount = 0;
 
@@ -618,11 +645,24 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
     }
 
     if (observation.note.trim()) {
+      const isOxytocinNote = noteMentionsOxytocin(observation.note);
+      const isOxytocinStopNote = noteStopsOxytocin(observation.note);
+
       notes.push({
         x: xForHour(status.hour),
+        hour: status.hour,
         time: formatDisplayTime(observation.time),
-        text: observation.note.trim()
+        text: observation.note.trim(),
+        isOxytocinNote
       });
+
+      if (isOxytocinNote) {
+        oxytocinNoteEvents.push({
+          hour: status.hour,
+          timeLabel: formatDisplayTime(observation.time),
+          isStop: isOxytocinStopNote
+        });
+      }
     }
   });
 
@@ -665,8 +705,52 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
     0,
     ...dilationPoints.map((point) => point.hour),
     ...stationPoints.map((point) => point.hour),
-    ...guideLines.map((line) => line.hour)
+    ...guideLines.map((line) => line.hour),
+    ...notes.map((note) => note.hour)
   );
+
+  let noteInfusionStart = null;
+  let noteInfusionStartLabel = "";
+
+  oxytocinNoteEvents.forEach((event) => {
+    if (event.isStop) {
+      if (noteInfusionStart !== null && event.hour > noteInfusionStart) {
+        oxytocinNoteHighlights.push({
+          startHour: noteInfusionStart,
+          endHour: event.hour,
+          x1: xForHour(noteInfusionStart),
+          x2: xForHour(event.hour),
+          startLabel: noteInfusionStartLabel,
+          endLabel: event.timeLabel,
+          ended: true
+        });
+      }
+
+      noteInfusionStart = null;
+      noteInfusionStartLabel = "";
+      return;
+    }
+
+    if (noteInfusionStart === null) {
+      noteInfusionStart = event.hour;
+      noteInfusionStartLabel = event.timeLabel;
+    }
+  });
+
+  if (noteInfusionStart !== null) {
+    const endHour = Math.max(noteInfusionStart + 0.5, latestClinicalHour);
+
+    oxytocinNoteHighlights.push({
+      startHour: noteInfusionStart,
+      endHour,
+      x1: xForHour(noteInfusionStart),
+      x2: xForHour(endHour),
+      startLabel: noteInfusionStartLabel,
+      endLabel: "",
+      ended: false
+    });
+  }
+
   let infusionRunning = false;
   let currentRate = "";
   let currentUnit = "mU/min";
@@ -728,6 +812,7 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
     guideLines,
     notes,
     annotations: chartAnnotations,
+    oxytocinNoteHighlights,
     oxytocinBands,
     oxytocinChanges,
     validCount,
@@ -979,6 +1064,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, chartRef, c
         );
       })}
 
+      <OxytocinNoteHighlights highlights={data.oxytocinNoteHighlights} grid={grid} />
       {SHOW_OXYTOCIN_FEATURE && <OxytocinBands bands={data.oxytocinBands} grid={grid} />}
 
       {Array.from({ length: data.maxHour + 1 }, (_, hour) => {
@@ -1120,12 +1206,15 @@ function NoteLabels({ notes, grid }) {
   return layouts.map((note) => {
     const y = grid.top - NOTE_LABEL_GAP - note.laneIndex * laneStride - note.height;
     const connectorY = y + note.height;
+    const fill = note.isOxytocinNote ? "#fef3c7" : "#f8f6f2";
+    const stroke = note.isOxytocinNote ? "#d6a72c" : "#e2ddd3";
+    const ink = note.isOxytocinNote ? "#6f4b00" : "#4b4034";
 
     return (
       <g key={`${note.x}-${note.text}`} data-presentation-note="true" data-presentation-note-y={y}>
-        <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke="#cfc7ba" strokeWidth="1" />
-        <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill="#f8f6f2" stroke="#e2ddd3" strokeWidth="1" opacity="0.98" />
-        <text x={note.labelX + 9} y={y + 15} fontSize="10" fontWeight="800" fill="#4b4034">
+        <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke={stroke} strokeWidth="1" />
+        <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth="1" opacity="0.98" />
+        <text x={note.labelX + 9} y={y + 15} fontSize="10" fontWeight="800" fill={ink}>
           {note.labelLines.map((line, index) => (
             <tspan key={`${line}-${index}`} x={note.labelX + 9} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
               {line}
@@ -1135,6 +1224,61 @@ function NoteLabels({ notes, grid }) {
       </g>
     );
   });
+}
+
+function OxytocinNoteHighlights({ highlights, grid }) {
+  if (!highlights.length) return null;
+
+  return (
+    <g aria-label="Oxytocin periods inferred from observation notes">
+      {highlights.map((highlight, index) => {
+        const width = Math.max(10, highlight.x2 - highlight.x1);
+        const x = clamp(highlight.x1, grid.left, grid.right - width);
+        const labelX = x + width / 2;
+
+        return (
+          <g key={`${highlight.startHour}-${highlight.endHour}-${index}`}>
+            <rect
+              x={x}
+              y={grid.top}
+              width={width}
+              height={grid.bottom - grid.top}
+              fill="#f2c94c"
+              opacity={highlight.ended ? "0.12" : "0.075"}
+            />
+            <line
+              x1={highlight.x1}
+              y1={grid.top}
+              x2={highlight.x1}
+              y2={grid.bottom}
+              stroke="#c89200"
+              strokeWidth="1.2"
+              strokeDasharray="5 7"
+              opacity="0.58"
+            />
+            {highlight.ended && (
+              <line
+                x1={highlight.x2}
+                y1={grid.top}
+                x2={highlight.x2}
+                y2={grid.bottom}
+                stroke="#c89200"
+                strokeWidth="1.2"
+                strokeDasharray="5 7"
+                opacity="0.48"
+              />
+            )}
+            <text x={labelX} y={grid.bottom - 36} textAnchor="middle" fontSize="9" fontWeight="900" fill="#795600">
+              {highlight.ended ? "OXYTOCIN" : "OXYTOCIN ACTIVE"}
+            </text>
+            <text x={labelX} y={grid.bottom - 23} textAnchor="middle" fontSize="8" fontWeight="800" fill="#795600">
+              {highlight.ended ? `${highlight.startLabel} to ${highlight.endLabel}` : `from ${highlight.startLabel}; no stop note`}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
 }
 
 function OxytocinBands({ bands, grid }) {
