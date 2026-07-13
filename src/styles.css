@@ -2686,7 +2686,7 @@ td select {
   }
 
   .entry-actions {
-    flex-direction: column-reverse;
+    flex-direction: column;
   }
 
   .entry-actions button {
