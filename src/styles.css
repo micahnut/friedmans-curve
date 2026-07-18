@@ -71,7 +71,7 @@ textarea:focus-visible {
 }
 
 .app-shell {
-  max-width: 1760px;
+  max-width: 1920px;
   margin: 0 auto;
   padding: 22px;
 }
@@ -551,7 +551,7 @@ input[type="checkbox"] {
 
 .chart-interactive {
   position: relative;
-  width: min(100%, 1180px);
+  width: min(100%, 1440px);
   margin: 0 auto;
 }
 
@@ -560,7 +560,7 @@ input[type="checkbox"] {
   width: 100%;
   min-width: 0;
   height: auto;
-  aspect-ratio: 1200 / 850;
+  aspect-ratio: 1440 / 990;
 }
 
 .chart-point {
@@ -1068,8 +1068,8 @@ td select {
 .chart-viewer {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(100%, 1180px);
-  height: min(100%, 820px);
+  width: min(100%, 1480px);
+  height: min(100%, 920px);
   max-height: calc(100vh - 32px);
   border: 1px solid rgba(215, 220, 227, 0.95);
   border-radius: 12px;
@@ -1652,13 +1652,18 @@ td select {
 
 .annotation-form {
   display: grid;
-  grid-template-columns: minmax(260px, 1.4fr) minmax(190px, 0.9fr) minmax(180px, 0.8fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   align-items: end;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
+}
+
+.annotation-form label,
+.annotation-edit-form label {
+  min-width: 0;
 }
 
 .annotation-text textarea {
@@ -1743,10 +1748,22 @@ td select {
 
 .annotation-item.editing {
   grid-column: 1 / -1;
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
   border-color: var(--annotation-accent);
   border-left-color: var(--annotation-accent);
   background: linear-gradient(90deg, var(--annotation-pill-bg), var(--annotation-edit-bg) 28%);
   box-shadow: 0 10px 26px var(--annotation-edit-glow);
+}
+
+.annotation-item.editing .annotation-item-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.annotation-item.editing .annotation-item-body > div:first-child {
+  padding-right: 104px;
 }
 
 .annotation-item-body {
@@ -1833,7 +1850,7 @@ td select {
 
 .annotation-edit-form {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(160px, 0.8fr) minmax(150px, 0.75fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   padding: 12px;
   border: 1px solid rgba(215, 220, 227, 0.9);
@@ -1981,11 +1998,11 @@ td select {
 
 @media (min-width: 1280px) {
   .app-shell {
-    max-width: 1760px;
+    max-width: 1920px;
   }
 
   .workspace {
-    grid-template-columns: minmax(640px, 1.05fr) minmax(560px, 0.8fr);
+    grid-template-columns: minmax(560px, 0.88fr) minmax(0, 1.12fr);
     align-items: start;
   }
 
@@ -2007,7 +2024,7 @@ td select {
     z-index: 8;
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr);
-    max-height: calc(100vh - 32px);
+    max-height: none;
     overflow: hidden;
   }
 
@@ -2026,12 +2043,28 @@ td select {
 
   .chart-panel .chart-scroller {
     align-items: start;
-    overflow: auto;
+    overflow: hidden;
     overscroll-behavior: contain;
   }
 
   .chart-panel .chart-interactive {
     width: 100%;
+  }
+
+  .patient-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wide {
+    grid-column: 1 / -1;
+  }
+
+  .date-field,
+  .start-time-field,
+  .resident-field {
+    grid-column: auto;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .observation-summary-row {
@@ -2041,7 +2074,7 @@ td select {
   }
 
   .observation-summary {
-    grid-template-columns: minmax(92px, 0.52fr) minmax(142px, 0.72fr) minmax(160px, 1.18fr);
+    grid-template-columns: minmax(92px, 0.52fr) minmax(136px, 0.72fr) minmax(0, 1.18fr);
     gap: 7px;
     padding: 6px 8px;
   }
@@ -2078,8 +2111,8 @@ td select {
     height: 32px;
   }
 
-  .annotation-form {
-    grid-template-columns: minmax(0, 1.15fr) minmax(150px, 0.72fr) minmax(145px, 0.68fr);
+  .annotation-list {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2157,7 +2190,7 @@ td select {
 
 @media (min-width: 1280px) and (max-width: 1366px) {
   .workspace {
-    grid-template-columns: minmax(560px, 1fr) minmax(500px, 0.8fr);
+    grid-template-columns: minmax(540px, 0.86fr) minmax(0, 1.14fr);
   }
 
   .patient-panel {
@@ -2178,7 +2211,7 @@ td select {
 
 @media (max-width: 1279px) {
   body {
-    padding-bottom: 76px;
+    padding-bottom: calc(60px + env(safe-area-inset-bottom));
   }
 
   .desktop-layout {
@@ -2227,9 +2260,8 @@ td select {
     gap: 6px;
     padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.96);
+    background: #ffffff;
     box-shadow: 0 -10px 28px rgba(34, 41, 55, 0.12);
-    backdrop-filter: blur(10px);
   }
 
   .mobile-bottom-nav button {
@@ -2237,6 +2269,7 @@ td select {
     place-items: center;
     min-height: 44px;
     border-radius: 8px;
+    border-right: 0;
     background: #eef1f5;
     color: #29313c;
     font-size: 0.78rem;
@@ -2418,7 +2451,7 @@ td select {
 
 @media (max-width: 720px) {
   body {
-    padding-bottom: 76px;
+    padding-bottom: calc(60px + env(safe-area-inset-bottom));
   }
 
   .app-shell {
@@ -2704,9 +2737,8 @@ td select {
     gap: 5px;
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.96);
+    background: #ffffff;
     box-shadow: 0 -10px 28px rgba(34, 41, 55, 0.12);
-    backdrop-filter: blur(10px);
   }
 
   .mobile-bottom-nav button {
@@ -2714,6 +2746,7 @@ td select {
     place-items: center;
     min-height: 44px;
     border-radius: 8px;
+    border-right: 0;
     background: #eef1f5;
     color: #29313c;
     font-size: 0.72rem;
@@ -3075,6 +3108,7 @@ td select {
   .data-panel,
   .chart-toolbar,
   .chart-viewer-backdrop,
+  .mobile-bottom-nav,
   .app-credit {
     display: none;
   }

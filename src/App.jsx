@@ -8,11 +8,11 @@ const MAX_SAVED_CHARTS = 5;
 const SHOW_OXYTOCIN_FEATURE = false;
 const STATION_VALUES = Array.from({ length: 11 }, (_, index) => index - 5);
 const DAY_VALUES = Array.from({ length: 8 }, (_, index) => index);
-const NOTE_LABEL_MAX_CHARS = 23;
-const NOTE_LABEL_MAX_WIDTH = 176;
+const NOTE_LABEL_MAX_CHARS = 21;
+const NOTE_LABEL_MAX_WIDTH = 260;
 const NOTE_LABEL_LANE_LIMIT = 5;
-const NOTE_LABEL_LINE_HEIGHT = 12;
-const NOTE_LABEL_GAP = 8;
+const NOTE_LABEL_LINE_HEIGHT = 18;
+const NOTE_LABEL_GAP = 12;
 const PATIENT_FIELDS = [
   "patientName",
   "patientAge",
@@ -668,11 +668,11 @@ function clinicalSummary(observations, startTime) {
 }
 
 function buildSvgData(patient, observations, annotations = [], oxytocinEvents = []) {
-  const baseWidth = 1200;
-  const left = 92;
+  const baseWidth = 1440;
+  const left = 118;
   const noteObservations = observations.filter((observation) => observation.note.trim());
-  const desiredGridHeight = 508;
-  const hourWidth = 57;
+  const desiredGridHeight = 620;
+  const hourWidth = 72;
   const maxObservationHour = Math.max(
     18,
     ...observations.map((observation) => {
@@ -689,10 +689,10 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
     })
   );
   const maxHour = Math.max(18, maxObservationHour);
-  const width = Math.max(baseWidth, left + maxHour * hourWidth + 80);
+  const width = Math.max(baseWidth, left + maxHour * hourWidth + 106);
   const horizontalGrid = {
     left,
-    right: width - 80
+    right: width - 106
   };
   const horizontalGridWidth = horizontalGrid.right - horizontalGrid.left;
   const xForHour = (hour) => horizontalGrid.left + (clamp(hour, 0, maxHour) / maxHour) * horizontalGridWidth;
@@ -993,15 +993,15 @@ function wrapText(value, maxChars) {
 }
 
 function prepareNoteLabels(notes) {
-  const charWidth = 5.8;
+  const charWidth = 8.4;
 
   return notes.slice(0, 16).map((note) => {
     const labelLines = wrapText(`${note.time} · ${note.text}`, NOTE_LABEL_MAX_CHARS);
 
     return {
       ...note,
-      width: Math.min(NOTE_LABEL_MAX_WIDTH, Math.max(86, Math.max(...labelLines.map((line) => line.length)) * charWidth + 18)),
-      height: labelLines.length * NOTE_LABEL_LINE_HEIGHT + 12,
+      width: Math.min(NOTE_LABEL_MAX_WIDTH, Math.max(132, Math.max(...labelLines.map((line) => line.length)) * charWidth + 26)),
+      height: labelLines.length * NOTE_LABEL_LINE_HEIGHT + 20,
       labelLines
     };
   });
@@ -1084,13 +1084,13 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
     ["AOG", patient.patientAog, 2.3],
     ["Date", formatDisplayDate(patient.patientDate), 1.95]
   ];
-  const headerLineHeight = 16;
+  const headerLineHeight = 22;
   const headerLabelWidths = {
-    Name: 62,
-    Age: 54,
-    "OB score": 82,
-    AOG: 58,
-    Date: 58
+    Name: 72,
+    Age: 62,
+    "OB score": 98,
+    AOG: 68,
+    Date: 68
   };
   const headerGap = 18;
   const headerWeight = info.reduce((total, [, , weight]) => total + weight, 0);
@@ -1101,7 +1101,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
     const labelWidth = headerLabelWidths[label] || 70;
     const valueX = headerCursorX + labelWidth;
     const lineEndX = headerCursorX + slotWidth - headerGap;
-    const maxChars = Math.max(5, Math.floor((lineEndX - valueX) / 7.4));
+    const maxChars = Math.max(5, Math.floor((lineEndX - valueX) / 9.6));
     const item = {
       label,
       lines: wrapHeaderValue(value, maxChars, 3),
@@ -1120,18 +1120,18 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
   const diagnosisLines = wrapText(diagnosisText, patient.residentName ? 102 : 132);
   const hasFooter = Boolean(patient.finalDiagnosis || patient.residentName);
   const gridCenterY = (grid.top + grid.bottom) / 2;
-  const stationLabelX = grid.right + 54;
-  const legendY = 124 + (maxHeaderLines - 1) * headerLineHeight;
-  const timeLabelY = grid.bottom + 70;
-  const diagnosisY = grid.bottom + 90;
-  const diagnosisLineHeight = 17;
+  const stationLabelX = grid.right + 66;
+  const legendY = 152 + (maxHeaderLines - 1) * headerLineHeight;
+  const timeLabelY = grid.bottom + 74;
+  const diagnosisY = grid.bottom + 98;
+  const diagnosisLineHeight = 20;
   const residentY = diagnosisY + Math.max(diagnosisLines.length, 1) * diagnosisLineHeight + 2;
   const height = hasFooter ? Math.max(data.height, residentY + 24) : data.height;
   const presentationTop = Math.max(0, data.notes.length ? Math.min(legendY - 6, grid.top - 150) : legendY - 6);
   const presentationBox = {
-    x: Math.max(0, grid.left - 70),
+    x: Math.max(0, grid.left - 92),
     y: presentationTop,
-    width: Math.min(width, grid.right + 72) - Math.max(0, grid.left - 70),
+    width: Math.min(width, grid.right + 92) - Math.max(0, grid.left - 92),
     height: Math.min(height, grid.bottom + 78) - presentationTop
   };
   const showPointDetails = (point, series) => {
@@ -1168,31 +1168,28 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
       >
       <rect width={width} height={height} fill="#ffffff" />
       <defs>
-        <marker id="annotation-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <marker id="annotation-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#7b8794" />
         </marker>
       </defs>
-      <text x={width / 2} y="42" textAnchor="middle" fontSize="27" fontWeight="900" fill="#111820">
+      <text x={width / 2} y="44" textAnchor="middle" fontSize="36" fontWeight="900" fill="#111820">
         FRIEDMAN&apos;S CURVE
-      </text>
-      <text x={width / 2} y="65" textAnchor="middle" fontSize="12" fontWeight="800" fill="#4f5865">
-        Generated chart
       </text>
 
       {headerItems.map(({ label, lines, x, valueX, lineEndX }) => {
         return (
           <g key={label}>
-            <text x={x} y="105" fontSize="14" fontWeight="900" fill="#1c1f24">
+            <text x={x} y="112" fontSize="19" fontWeight="900" fill="#1c1f24">
               {label}:
             </text>
-            <text x={valueX} y="105" fontSize="15" fontWeight="700" fill="#1c1f24">
+            <text x={valueX} y="112" fontSize="19" fontWeight="700" fill="#1c1f24">
               {lines.map((line, index) => (
                 <tspan key={`${line}-${index}`} x={valueX} dy={index === 0 ? 0 : headerLineHeight}>
                   {line}
                 </tspan>
               ))}
             </text>
-            <line x1={valueX - 2} y1="110" x2={lineEndX} y2="110" stroke="#1c1f24" strokeWidth="1.5" />
+            <line x1={valueX - 2} y1="119" x2={lineEndX} y2="119" stroke="#1c1f24" strokeWidth="1.9" />
           </g>
         );
       })}
@@ -1212,15 +1209,15 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
               x2={x}
               y2={grid.bottom}
               stroke={isEdge ? "#1d2530" : "#9aa3ad"}
-              strokeWidth={isEdge ? 1.7 : 0.8}
+              strokeWidth={isEdge ? 2.5 : 1.15}
               opacity={isEdge ? "0.82" : "0.26"}
             />
             {hour > 0 && (
-              <text x={x} y={grid.bottom + 34} textAnchor="middle" fontSize="16" fontWeight="900" fill="#111820">
+              <text x={x} y={grid.bottom + 42} textAnchor="middle" fontSize="25" fontWeight="900" fill="#111820" data-export-text="axis">
                 {hour}
               </text>
             )}
-            <text x={x} y={grid.bottom + 17} textAnchor="middle" fontSize="10" fontWeight="800" fill="#4f5865">
+            <text x={x} y={grid.bottom + 19} textAnchor="middle" fontSize="13" fontWeight="800" fill="#4f5865" data-export-hide="true">
               {data.timeFromHour(hour)}
             </text>
           </g>
@@ -1240,32 +1237,32 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
               x2={grid.right}
               y2={y}
               stroke={isEdge ? "#1d2530" : "#9aa3ad"}
-              strokeWidth={isEdge ? 1.7 : 0.8}
+              strokeWidth={isEdge ? 2.5 : 1.15}
               opacity={isEdge ? "0.82" : "0.26"}
             />
-            <text x={grid.left - 16} y={y + 5} textAnchor="end" fontSize="16" fontWeight="900" fill="#111820">
+            <text x={grid.left - 22} y={y + 8} textAnchor="end" fontSize="25" fontWeight="900" fill="#111820" data-export-text="axis">
               {dilation}
             </text>
-            <text x={grid.right + 18} y={y + 5} textAnchor="start" fontSize="16" fontWeight="900" fill="#111820">
+            <text x={grid.right + 24} y={y + 8} textAnchor="start" fontSize="25" fontWeight="900" fill="#111820" data-export-text="axis">
               {station}
             </text>
           </g>
         );
       })}
 
-      <text x="36" y={gridCenterY} fontSize="15" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(-90 36 ${gridCenterY})`}>
+      <text x="41" y={gridCenterY} fontSize="22" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(-90 41 ${gridCenterY})`} data-export-text="axis-title">
         CERVICAL DILATATION (CM)
       </text>
-      <text x={stationLabelX} y={gridCenterY} fontSize="15" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(90 ${stationLabelX} ${gridCenterY})`}>
+      <text x={stationLabelX} y={gridCenterY} fontSize="22" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(90 ${stationLabelX} ${gridCenterY})`} data-export-text="axis-title">
         STATION
       </text>
-      <text x={(grid.left + grid.right) / 2} y={timeLabelY} textAnchor="middle" fontSize="15" fontWeight="900" fill="#111820">
+      <text x={(grid.left + grid.right) / 2} y={timeLabelY} textAnchor="middle" fontSize="22" fontWeight="900" fill="#111820" data-export-text="axis-title">
         TIME (HOURS)
       </text>
-      <text x={grid.left} y={legendY} fontSize="12" fontWeight="900" fill="#0f63ce">
+      <text x={grid.left} y={legendY} fontSize="18" fontWeight="900" fill="#0f63ce" data-export-text="legend">
         Blue: cervical dilation
       </text>
-      <text x={grid.left + 168} y={legendY} fontSize="12" fontWeight="900" fill="#c62828">
+      <text x={grid.left + 300} y={legendY} fontSize="18" fontWeight="900" fill="#c62828" data-export-text="legend">
         Red: station
       </text>
 
@@ -1277,7 +1274,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
           x2={line.x}
           y2={grid.bottom}
           stroke="#1f2933"
-          strokeWidth="1.2"
+          strokeWidth="1.8"
           strokeDasharray="4 7"
           strokeLinecap="round"
           opacity="0.46"
@@ -1306,14 +1303,14 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
 
       {hasFooter && (
         <>
-          <text x={grid.left} y={diagnosisY} fontSize="13" fontWeight="900" fill="#111820">
+          <text x={grid.left} y={diagnosisY} fontSize="17" fontWeight="900" fill="#111820" data-presentation-hide="true">
             {diagnosisLines.map((line, index) => (
               <tspan key={`${line}-${index}`} x={grid.left} dy={index === 0 ? 0 : diagnosisLineHeight}>
                 {line}
               </tspan>
             ))}
           </text>
-          <text x={grid.right} y={residentY} textAnchor="end" fontSize="13" fontWeight="900" fill="#111820">
+          <text x={grid.right} y={residentY} textAnchor="end" fontSize="17" fontWeight="900" fill="#111820" data-presentation-hide="true">
             {patient.residentName ? `Resident: ${patient.residentName}` : ""}
           </text>
         </>
@@ -1347,11 +1344,11 @@ function NoteLabels({ notes, grid, activeObservationId }) {
 
     return (
       <g key={`${note.x}-${note.text}`} className={isActive ? "active-chart-callout" : ""} data-presentation-note="true" data-presentation-note-y={y}>
-        <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke={stroke} strokeWidth={isActive ? "2.4" : "1"} />
-        <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.4" : "1"} opacity="0.98" />
-        <text x={note.labelX + 9} y={y + 15} fontSize="10" fontWeight="800" fill={ink}>
+        <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke={stroke} strokeWidth={isActive ? "2.6" : "1.2"} />
+        <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.4" : "1"} opacity="0.98" data-export-box="note" />
+        <text x={note.labelX + note.width / 2} y={y + 18} textAnchor="middle" fontSize="13" fontWeight="900" fill={ink} data-export-text="note">
           {note.labelLines.map((line, index) => (
-            <tspan key={`${line}-${index}`} x={note.labelX + 9} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
+            <tspan key={`${line}-${index}`} x={note.labelX + note.width / 2} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
               {line}
             </tspan>
           ))}
@@ -1484,8 +1481,8 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
     intervention: { fill: "#dbeafe", stroke: "#6aa4dc", label: "Intervention" },
     outcome: { fill: "#fee2e2", stroke: "#d97878", label: "Outcome" }
   };
-  const boxWidth = 205;
-  const lineHeight = 12;
+  const boxWidth = 250;
+  const lineHeight = 16;
   const plottedPoints = [...dilationPoints, ...stationPoints];
   const plottedSegments = [dilationPoints, stationPoints].flatMap((points) =>
     points.slice(1).map((point, index) => [points[index], point])
@@ -1522,8 +1519,8 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
     const isActive = activeAnnotationId && annotation.id === activeAnnotationId;
     const targetLabel = annotation.targetSeries === "station" ? "station" : "cervix";
     const title = `${annotation.time} · ${style.label} · ${targetLabel}`;
-    const bodyLines = wrapText(annotation.text, 31);
-    const height = 31 + bodyLines.length * lineHeight + 12;
+    const bodyLines = wrapText(annotation.text, 28);
+    const height = 39 + bodyLines.length * lineHeight + 14;
     const gapX = 28;
     const gapY = 24;
     const rawCandidates = [
@@ -1575,13 +1572,13 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
           strokeWidth={isActive ? "3" : "1.5"}
           markerEnd="url(#annotation-arrow)"
         />
-        <rect x={placement.x} y={placement.y} width={boxWidth} height={height} rx="5" fill={style.fill} stroke={style.stroke} strokeWidth={isActive ? "2.8" : "1.2"} opacity="0.96" />
-        <text x={placement.x + 10} y={placement.y + 17} fontSize="10" fontWeight="900" fill="#28313d">
+        <rect x={placement.x} y={placement.y} width={boxWidth} height={height} rx="5" fill={style.fill} stroke={style.stroke} strokeWidth={isActive ? "2.8" : "1.3"} opacity="0.96" data-export-box="annotation" />
+        <text x={placement.x + boxWidth / 2} y={placement.y + 21} textAnchor="middle" fontSize="13" fontWeight="900" fill="#28313d" data-export-text="annotation-title">
           {title}
         </text>
-        <text x={placement.x + 10} y={placement.y + 34} fontSize="10" fontWeight="700" fill="#3e4650">
+        <text x={placement.x + boxWidth / 2} y={placement.y + 42} textAnchor="middle" fontSize="13" fontWeight="800" fill="#3e4650" data-export-text="annotation-body">
           {bodyLines.map((line, lineIndex) => (
-            <tspan key={`${line}-${lineIndex}`} x={placement.x + 10} dy={lineIndex === 0 ? 0 : lineHeight}>
+            <tspan key={`${line}-${lineIndex}`} x={placement.x + boxWidth / 2} dy={lineIndex === 0 ? 0 : lineHeight}>
               {line}
             </tspan>
           ))}
@@ -1635,7 +1632,7 @@ function Series({ points, color, marker, activeObservationId, onPointEnter, onPo
           d={formatPath(points)}
           fill="none"
           stroke={color}
-          strokeWidth="5.8"
+          strokeWidth="6.6"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -1649,10 +1646,10 @@ function Series({ points, color, marker, activeObservationId, onPointEnter, onPo
             className={`chart-point${isActive ? " active-chart-point" : ""}`}
             cx={point.x}
             cy={point.y}
-            r={isActive ? "9" : "8"}
+            r={isActive ? "10.5" : "9.5"}
             fill="#fff"
             stroke={color}
-            strokeWidth={isActive ? "5.8" : "4"}
+            strokeWidth={isActive ? "6.4" : "4.6"}
             tabIndex="0"
             aria-label={`Cervical dilation: ${point.value} cm at ${point.time}`}
             onMouseEnter={() => onPointEnter(point, "Cervical dilation")}
@@ -1671,8 +1668,8 @@ function Series({ points, color, marker, activeObservationId, onPointEnter, onPo
             onMouseLeave={onPointLeave}
             onBlur={onPointLeave}
           >
-            <line x1={point.x - 9} y1={point.y - 9} x2={point.x + 9} y2={point.y + 9} stroke={color} strokeWidth={isActive ? "5.8" : "4"} strokeLinecap="round" />
-            <line x1={point.x + 9} y1={point.y - 9} x2={point.x - 9} y2={point.y + 9} stroke={color} strokeWidth={isActive ? "5.8" : "4"} strokeLinecap="round" />
+            <line x1={point.x - 11} y1={point.y - 11} x2={point.x + 11} y2={point.y + 11} stroke={color} strokeWidth={isActive ? "6.4" : "4.8"} strokeLinecap="round" />
+            <line x1={point.x + 11} y1={point.y - 11} x2={point.x - 11} y2={point.y + 11} stroke={color} strokeWidth={isActive ? "6.4" : "4.8"} strokeLinecap="round" />
           </g>
         );
       })}
@@ -1928,9 +1925,82 @@ function GuidePage() {
   );
 }
 
-function serializeSvg(chartNode, viewBoxOverride = null) {
+function setNumericAttribute(node, attribute, transform) {
+  const value = Number(node.getAttribute(attribute));
+
+  if (Number.isFinite(value)) {
+    node.setAttribute(attribute, String(transform(value)));
+  }
+}
+
+function expandRect(node, deltaWidth = 0, deltaHeight = 0) {
+  setNumericAttribute(node, "x", (value) => value - deltaWidth / 2);
+  setNumericAttribute(node, "y", (value) => value - deltaHeight / 2);
+  setNumericAttribute(node, "width", (value) => value + deltaWidth);
+  setNumericAttribute(node, "height", (value) => value + deltaHeight);
+}
+
+function prepareSvgForPhotoExport(clone) {
+  clone.querySelectorAll("[data-export-hide='true']").forEach((node) => node.remove());
+
+  if (clone.dataset.exportKind === "presentation") {
+    clone.querySelectorAll("[data-presentation-hide='true']").forEach((node) => node.remove());
+  }
+
+  clone.querySelectorAll("[data-export-text='axis']").forEach((node) => {
+    node.setAttribute("font-size", "29");
+    node.setAttribute("font-weight", "900");
+  });
+
+  clone.querySelectorAll("[data-export-text='axis-title']").forEach((node) => {
+    node.setAttribute("font-size", "26");
+    node.setAttribute("font-weight", "900");
+  });
+
+  clone.querySelectorAll("[data-export-text='legend']").forEach((node) => {
+    node.setAttribute("font-size", "21");
+    node.setAttribute("font-weight", "900");
+  });
+
+  clone.querySelectorAll("[data-export-text='note']").forEach((node) => {
+    node.setAttribute("font-size", "15");
+    node.setAttribute("font-weight", "900");
+
+    const firstLine = node.querySelector("tspan");
+    if (firstLine) {
+      firstLine.textContent = firstLine.textContent.replace(/^[^·]+·\s*/, "");
+      if (!firstLine.textContent.trim()) firstLine.remove();
+    }
+  });
+
+  clone.querySelectorAll("[data-export-text='annotation-title']").forEach((node) => {
+    node.setAttribute("font-size", "15");
+    node.setAttribute("font-weight", "900");
+    node.textContent = node.textContent.replace(/^[^·]+·\s*/, "");
+  });
+
+  clone.querySelectorAll("[data-export-text='annotation-body']").forEach((node) => {
+    node.setAttribute("font-size", "15");
+    node.setAttribute("font-weight", "800");
+  });
+
+  clone.querySelectorAll("[data-export-box='note']").forEach((node) => {
+    expandRect(node, 18, 10);
+  });
+
+  clone.querySelectorAll("[data-export-box='annotation']").forEach((node) => {
+    expandRect(node, 0, 16);
+  });
+}
+
+function serializeSvg(chartNode, viewBoxOverride = null, options = {}) {
   const clone = chartNode.cloneNode(true);
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.dataset.exportKind = options.presentationExport ? "presentation" : "full";
+
+  if (options.photoExport) {
+    prepareSvgForPhotoExport(clone);
+  }
 
   if (viewBoxOverride) {
     clone.setAttribute("viewBox", `${viewBoxOverride.x} ${viewBoxOverride.y} ${viewBoxOverride.width} ${viewBoxOverride.height}`);
@@ -2579,7 +2649,7 @@ export default function App() {
   const downloadPng = () => {
     if (!chartRef.current) return;
 
-    const svgText = serializeSvg(chartRef.current);
+    const svgText = serializeSvg(chartRef.current, null, { photoExport: true });
     const image = new Image();
     const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(svgBlob);
@@ -2612,6 +2682,65 @@ export default function App() {
     image.src = url;
   };
 
+  const printChart = () => {
+    if (!chartRef.current) return;
+
+    const svgText = serializeSvg(chartRef.current, null, { photoExport: true });
+    const appFontFamily = JSON.stringify(getComputedStyle(document.body).fontFamily || "system-ui, sans-serif");
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
+      notify("Print window was blocked.");
+      return;
+    }
+
+    printWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <title>Friedman's Curve</title>
+    <style>
+      @page {
+        size: A4 landscape;
+        margin: 0.18in;
+      }
+
+      html,
+      body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        background: #ffffff;
+        font-family: ${appFontFamily};
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+      }
+
+      svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-width: 100vw;
+        max-height: 7.85in;
+      }
+    </style>
+  </head>
+  <body>${svgText}</body>
+</html>`);
+    printWindow.document.close();
+    printWindow.focus();
+
+    printWindow.onafterprint = () => printWindow.close();
+
+    setTimeout(() => {
+      printWindow.print();
+    }, 80);
+
+    notify("Print dialog opened.");
+  };
+
   const downloadPresentationPng = () => {
     if (!chartRef.current) return;
 
@@ -2620,8 +2749,8 @@ export default function App() {
     const noteTops = [...chartRef.current.querySelectorAll('[data-presentation-note="true"]')]
       .map((note) => Number(note.dataset.presentationNoteY))
       .filter(Number.isFinite);
-    const cropTop = noteTops.length ? Math.max(0, Math.min(...noteTops) - 8) : Math.max(0, gridTop - 24);
-    const cropBottom = gridBottom + 78;
+    const cropTop = noteTops.length ? Math.max(0, Math.min(...noteTops) - 36) : Math.max(0, gridTop - 36);
+    const cropBottom = gridBottom + 116;
     const presentationBox = {
       x: Number(chartRef.current.dataset.presentationX),
       y: cropTop,
@@ -2631,7 +2760,7 @@ export default function App() {
 
     if (Object.values(presentationBox).some((value) => !Number.isFinite(value))) return;
 
-    const svgText = serializeSvg(chartRef.current, presentationBox);
+    const svgText = serializeSvg(chartRef.current, presentationBox, { photoExport: true, presentationExport: true });
     const image = new Image();
     const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(svgBlob);
@@ -2640,7 +2769,7 @@ export default function App() {
       const canvas = document.createElement("canvas");
       const slideWidth = 2560;
       const slideHeight = 1440;
-      const margin = 32;
+      const margin = 36;
       const scale = Math.min(
         (slideWidth - margin * 2) / presentationBox.width,
         (slideHeight - margin * 2) / presentationBox.height
@@ -2934,9 +3063,9 @@ export default function App() {
               </button>
               {showExportMenu && (
                 <div className="export-options" role="menu" aria-label="Export chart">
-                  <button type="button" role="menuitem" onClick={() => { window.print(); notify("Print dialog opened."); setShowExportMenu(false); }}>
+                  <button type="button" role="menuitem" onClick={() => { printChart(); setShowExportMenu(false); }}>
                     Print chart
-                    <span>Use the browser print dialog</span>
+                    <span>Prints the same content as the full chart export</span>
                   </button>
                   <button type="button" role="menuitem" onClick={() => { downloadPresentationPng(); setShowExportMenu(false); }}>
                     Presentation PNG (16:9)
