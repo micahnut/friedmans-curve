@@ -1178,7 +1178,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
 
       {headerItems.map(({ label, lines, x, valueX, lineEndX }) => {
         return (
-          <g key={label}>
+          <g key={label} data-presentation-hide="true">
             <text x={x} y="112" fontSize="19" fontWeight="900" fill="#1c1f24">
               {label}:
             </text>
@@ -1793,11 +1793,11 @@ function GuidePage() {
         <div className="guide-grid">
           <article>
             <h3>Patient Details</h3>
-            <p>Fill in the patient panel first. These fields print into the generated chart header and footer.</p>
+            <p>Fill in the patient panel first. These fields appear in the chart header and, for full outputs, the footer.</p>
             <ul>
               <li>Name, Age, OB Score, AOG, Date, Start Time</li>
-              <li>Final Diagnosis for the lower chart text</li>
-              <li>Resident for the signature line</li>
+              <li>Final Diagnosis for the full chart footer</li>
+              <li>Resident for the full chart signature line</li>
               <li>Long values wrap automatically on the chart.</li>
             </ul>
           </article>
@@ -1838,9 +1838,10 @@ function GuidePage() {
 
           <article>
             <h3>Timeline Notes</h3>
-            <p>Short observation notes appear above the graph with their time. Use these for concise labels such as admission, medication, mount, or baby out.</p>
+            <p>Short observation notes appear above the graph with connector lines to their exact timestamp. Use these for concise labels such as admission, medication, mount, or baby out.</p>
             <ul>
               <li>Notes can be used even when the row has no cervix or station value.</li>
+              <li>Nearby notes are staggered into lanes to reduce overlap.</li>
               <li>Notes containing oxy or oxytocin tint amber and can highlight oxytocin activity on the chart.</li>
             </ul>
           </article>
@@ -1873,6 +1874,7 @@ function GuidePage() {
               <li>Choose whether the callout connects to the cervix or station point.</li>
               <li>Choose a type: clinical note, medication, intervention, or outcome.</li>
               <li>Annotations can be edited or deleted after adding.</li>
+              <li>Annotation text is centered inside the chart and exported callout boxes.</li>
             </ul>
           </article>
 
@@ -1888,9 +1890,9 @@ function GuidePage() {
 
           <article>
             <h3>Navigation</h3>
-            <p>Use the bottom navigation on mobile or the sticky rail on desktop to jump between sections.</p>
+            <p>Use the rounded bottom navigation on mobile and iPad, or the sticky rail on desktop, to jump between sections.</p>
             <ul>
-              <li>Chart jumps to the generated curve.</li>
+              <li>Chart jumps to the curve.</li>
               <li>Add opens the mobile observation sheet.</li>
               <li>Annotate jumps to chart annotations.</li>
               <li>Records jumps to recorded observations.</li>
@@ -1906,12 +1908,13 @@ function GuidePage() {
 
           <article>
             <h3>Export</h3>
-            <p>Use Presentation PNG (16:9) for PowerPoint, Keynote, Google Slides, or Zoom. It enlarges the graph and removes the document-style header and footer. Use Full chart PNG or SVG when patient details and diagnosis must remain visible.</p>
+            <p>Use Presentation PNG (16:9) for PowerPoint, Keynote, Google Slides, or Zoom. It enlarges the graph and removes the document-style patient header, diagnosis, and resident footer. Use Full chart PNG when patient details and diagnosis must remain visible.</p>
             <ul>
-              <li>Print opens the browser print dialog.</li>
+              <li>Print uses the same cleaned content as the full chart image export.</li>
               <li>Presentation PNG is a 2560 × 1440 slide-ready image.</li>
-              <li>SVG is best for crisp editing or archiving.</li>
               <li>Full chart PNG is best for sharing the complete record.</li>
+              <li>SVG is best for crisp editing or archiving the live chart.</li>
+              <li>Photo-style exports and print hide small clock-time labels and use larger readable chart text.</li>
             </ul>
           </article>
 
