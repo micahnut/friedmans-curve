@@ -89,7 +89,7 @@ On iPad and mobile, the bottom navigation keeps the rounded segmented design and
 Use the Export menu for output.
 
 - `Print chart`: prints the same cleaned content as the full chart image export.
-- `Presentation PNG (16:9)`: creates a 2560 x 1440 slide-ready image focused on the graph. It hides the document-style diagnosis and resident footer.
+- `Presentation PNG (16:9)`: creates a 2560 x 1440 slide-ready image focused on the graph. It hides the document-style patient header, diagnosis, and resident footer.
 - `Full chart PNG`: creates a complete chart image with patient details, final diagnosis, and resident name.
 - `SVG`: exports the editable live chart SVG.
 

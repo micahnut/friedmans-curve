@@ -1178,7 +1178,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
 
       {headerItems.map(({ label, lines, x, valueX, lineEndX }) => {
         return (
-          <g key={label}>
+          <g key={label} data-presentation-hide="true">
             <text x={x} y="112" fontSize="19" fontWeight="900" fill="#1c1f24">
               {label}:
             </text>
@@ -1908,7 +1908,7 @@ function GuidePage() {
 
           <article>
             <h3>Export</h3>
-            <p>Use Presentation PNG (16:9) for PowerPoint, Keynote, Google Slides, or Zoom. It enlarges the graph and removes the diagnosis and resident footer. Use Full chart PNG when patient details and diagnosis must remain visible.</p>
+            <p>Use Presentation PNG (16:9) for PowerPoint, Keynote, Google Slides, or Zoom. It enlarges the graph and removes the document-style patient header, diagnosis, and resident footer. Use Full chart PNG when patient details and diagnosis must remain visible.</p>
             <ul>
               <li>Print uses the same cleaned content as the full chart image export.</li>
               <li>Presentation PNG is a 2560 × 1440 slide-ready image.</li>
