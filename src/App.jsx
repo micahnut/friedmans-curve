@@ -1034,10 +1034,10 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
   const padding = 10;
   const minY = grid.top - 82;
   const maxY = grid.bottom + 10;
-  const pointInsideRect = (point, rect, extra = 18) =>
+  const pointInsideRect = (point, rect, extra = 6) =>
     point.x >= rect.x - extra && point.x <= rect.x + rect.width + extra &&
     point.y >= rect.y - extra && point.y <= rect.y + rect.height + extra;
-  const lineIntersectsRect = ([start, end], rect, extra = 18) => {
+  const lineIntersectsRect = ([start, end], rect, extra = 12) => {
     const left = rect.x - extra;
     const right = rect.x + rect.width + extra;
     const top = rect.y - extra;
@@ -1067,9 +1067,6 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
     const aboveGridY = grid.top - note.height - 10;
     const belowGridY = grid.bottom + 10;
     const rawCandidates = [
-      { x: centeredX, y: aboveGridY, order: -2 },
-      { x: rightX, y: aboveGridY, order: -1 },
-      { x: leftX, y: aboveGridY, order: 0 },
       { x: centeredX, y: note.anchorY - note.height - 18, order: 0 },
       { x: rightX, y: note.anchorY - note.height - 14, order: 1 },
       { x: leftX, y: note.anchorY - note.height - 14, order: 2 },
@@ -1088,9 +1085,12 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
       { x: leftX, y: note.anchorY - note.height - 118, order: 15 },
       { x: rightX, y: note.anchorY + 118, order: 16 },
       { x: leftX, y: note.anchorY + 118, order: 17 },
-      { x: centeredX, y: belowGridY, order: 18 },
-      { x: rightX, y: belowGridY, order: 19 },
-      { x: leftX, y: belowGridY, order: 20 }
+      { x: centeredX, y: aboveGridY, order: 18 },
+      { x: rightX, y: aboveGridY, order: 19 },
+      { x: leftX, y: aboveGridY, order: 20 },
+      { x: centeredX, y: belowGridY, order: 21 },
+      { x: rightX, y: belowGridY, order: 22 },
+      { x: leftX, y: belowGridY, order: 23 }
     ];
     const candidates = rawCandidates.map((candidate) => {
       const rect = {
@@ -1103,11 +1103,11 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
       const lineCollisions = plottedSegments.filter((segment) => lineIntersectsRect(segment, rect)).length;
       const boxCollisions = placedBoxes.filter((box) => boxesOverlap(rect, box)).length;
       const distance = Math.hypot(rect.x + rect.width / 2 - note.x, rect.y + rect.height / 2 - note.anchorY);
-      const outsideGridPenalty = rect.y < grid.top || rect.y + rect.height > grid.bottom ? 250 : 0;
+      const outsideGridPenalty = rect.y < grid.top || rect.y + rect.height > grid.bottom ? 260000 : 0;
 
       return {
         ...rect,
-        score: boxCollisions * 42000 + pointCollisions * 240000 + lineCollisions * 220000 + distance * 5 + outsideGridPenalty + candidate.order * 20
+        score: boxCollisions * 52000 + pointCollisions * 180000 + lineCollisions * 160000 + distance * 5 + outsideGridPenalty + candidate.order * 20
       };
     });
     const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
