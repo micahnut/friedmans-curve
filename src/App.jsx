@@ -1032,10 +1032,10 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
   );
   const placedBoxes = [];
   const padding = 10;
-  const pointInsideRect = (point, rect, extra = 10) =>
+  const pointInsideRect = (point, rect, extra = 18) =>
     point.x >= rect.x - extra && point.x <= rect.x + rect.width + extra &&
     point.y >= rect.y - extra && point.y <= rect.y + rect.height + extra;
-  const lineIntersectsRect = ([start, end], rect, extra = 6) => {
+  const lineIntersectsRect = ([start, end], rect, extra = 18) => {
     const left = rect.x - extra;
     const right = rect.x + rect.width + extra;
     const top = rect.y - extra;
@@ -1059,15 +1059,28 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
     first.y + first.height + extra > second.y;
 
   return preparedNotes.map((note) => {
+    const centeredX = note.x - note.width / 2;
+    const rightX = note.x + 22;
+    const leftX = note.x - note.width - 22;
     const rawCandidates = [
-      { x: note.x - note.width / 2, y: note.anchorY - note.height - 16, order: 0 },
-      { x: note.x + 18, y: note.anchorY - note.height - 12, order: 1 },
-      { x: note.x - note.width - 18, y: note.anchorY - note.height - 12, order: 2 },
-      { x: note.x - note.width / 2, y: note.anchorY + 16, order: 3 },
-      { x: note.x + 18, y: note.anchorY + 12, order: 4 },
-      { x: note.x - note.width - 18, y: note.anchorY + 12, order: 5 },
-      { x: note.x - note.width / 2, y: note.anchorY - note.height - 52, order: 6 },
-      { x: note.x - note.width / 2, y: note.anchorY + 52, order: 7 }
+      { x: centeredX, y: note.anchorY - note.height - 18, order: 0 },
+      { x: rightX, y: note.anchorY - note.height - 14, order: 1 },
+      { x: leftX, y: note.anchorY - note.height - 14, order: 2 },
+      { x: centeredX, y: note.anchorY + 18, order: 3 },
+      { x: rightX, y: note.anchorY + 14, order: 4 },
+      { x: leftX, y: note.anchorY + 14, order: 5 },
+      { x: centeredX, y: note.anchorY - note.height - 72, order: 6 },
+      { x: centeredX, y: note.anchorY + 72, order: 7 },
+      { x: rightX, y: note.anchorY - note.height - 72, order: 8 },
+      { x: leftX, y: note.anchorY - note.height - 72, order: 9 },
+      { x: rightX, y: note.anchorY + 72, order: 10 },
+      { x: leftX, y: note.anchorY + 72, order: 11 },
+      { x: centeredX, y: note.anchorY - note.height - 118, order: 12 },
+      { x: centeredX, y: note.anchorY + 118, order: 13 },
+      { x: rightX, y: note.anchorY - note.height - 118, order: 14 },
+      { x: leftX, y: note.anchorY - note.height - 118, order: 15 },
+      { x: rightX, y: note.anchorY + 118, order: 16 },
+      { x: leftX, y: note.anchorY + 118, order: 17 }
     ];
     const candidates = rawCandidates.map((candidate) => {
       const rect = {
@@ -1083,7 +1096,7 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
 
       return {
         ...rect,
-        score: boxCollisions * 42000 + pointCollisions * 7000 + lineCollisions * 1400 + distance * 7 + candidate.order * 20
+        score: boxCollisions * 42000 + pointCollisions * 180000 + lineCollisions * 160000 + distance * 7 + candidate.order * 20
       };
     });
     const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
@@ -1232,6 +1245,9 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
         <marker id="annotation-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#7b8794" />
         </marker>
+        <marker id="note-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+        </marker>
       </defs>
       <text x={width / 2} y="44" textAnchor="middle" fontSize="36" fontWeight="900" fill="#111820">
         FRIEDMAN&apos;S CURVE
@@ -1342,8 +1358,6 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
         />
       ))}
       {SHOW_OXYTOCIN_FEATURE && <OxytocinTrack bands={data.oxytocinBands} changes={data.oxytocinChanges} grid={grid} />}
-      <NoteLabels layouts={noteLayouts} activeObservationId={activeObservationId} />
-      <ChartAnnotationLabels annotations={data.annotations} grid={grid} dilationPoints={data.dilationPoints} stationPoints={data.stationPoints} avoidBoxes={noteAvoidBoxes} activeAnnotationId={activeAnnotationId} />
       <StartConnectors data={data} />
       <Series
         points={data.dilationPoints.map((point) => ({ ...point, time: data.timeFromHour(point.hour) }))}
@@ -1361,6 +1375,8 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
         onPointEnter={showPointDetails}
         onPointLeave={() => setHoveredPoint(null)}
       />
+      <NoteLabels layouts={noteLayouts} activeObservationId={activeObservationId} />
+      <ChartAnnotationLabels annotations={data.annotations} grid={grid} dilationPoints={data.dilationPoints} stationPoints={data.stationPoints} avoidBoxes={noteAvoidBoxes} activeAnnotationId={activeAnnotationId} />
 
       {hasFooter && (
         <>
@@ -1401,14 +1417,25 @@ function NoteLabels({ layouts, activeObservationId }) {
         ? note.y + note.height
         : clamp(note.anchorY, note.y + 12, note.y + note.height - 12);
     const fill = "#f8f6f2";
-    const stroke = "#d3ccbf";
+    const stroke = "#64748b";
     const ink = "#4b4034";
     const isActive = activeObservationId && note.observationId === activeObservationId;
 
     return (
       <g key={`${note.x}-${note.text}`} className={isActive ? "active-chart-callout" : ""} data-presentation-note="true" data-presentation-note-y={note.y}>
-        <line x1={boxConnectorX} y1={boxConnectorY} x2={note.anchorX} y2={note.anchorY} stroke={stroke} strokeWidth={isActive ? "2.6" : "1.2"} strokeDasharray="4 5" />
-        <rect x={note.x} y={note.y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.4" : "1.1"} opacity="0.94" data-export-box="note" />
+        <line
+          x1={boxConnectorX}
+          y1={boxConnectorY}
+          x2={note.anchorX}
+          y2={note.anchorY}
+          stroke={stroke}
+          strokeWidth={isActive ? "2.6" : "1.35"}
+          strokeLinecap="round"
+          markerEnd="url(#note-arrow)"
+          opacity="0.86"
+        />
+        <circle cx={note.anchorX} cy={note.anchorY} r="3.4" fill="#ffffff" stroke={stroke} strokeWidth="1.4" opacity="0.92" />
+        <rect x={note.x} y={note.y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.4" : "1.1"} opacity="0.99" data-export-box="note" />
         <text x={note.x + note.width / 2} y={note.y + 18} textAnchor="middle" fontSize="13" fontWeight="900" fill={ink} data-export-text="note">
           {note.labelLines.map((line, index) => (
             <tspan key={`${line}-${index}`} x={note.x + note.width / 2} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
@@ -1552,10 +1579,10 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
   );
   const placedBoxes = [...avoidBoxes];
   const gridPadding = 10;
-  const pointInsideRect = (point, rect, padding = 12) =>
+  const pointInsideRect = (point, rect, padding = 18) =>
     point.x >= rect.x - padding && point.x <= rect.x + rect.width + padding &&
     point.y >= rect.y - padding && point.y <= rect.y + rect.height + padding;
-  const lineIntersectsRect = ([start, end], rect, padding = 8) => {
+  const lineIntersectsRect = ([start, end], rect, padding = 18) => {
     const left = rect.x - padding;
     const right = rect.x + rect.width + padding;
     const top = rect.y - padding;
@@ -1600,18 +1627,25 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
     const height = 39 + bodyLines.length * lineHeight + 14;
     const gapX = 28;
     const gapY = 24;
+    const centeredX = annotation.x - boxWidth / 2;
+    const rightX = annotation.x + gapX;
+    const leftX = annotation.x - boxWidth - gapX;
     const rawCandidates = [
-      { x: annotation.x + gapX, y: annotation.anchorY - height - gapY, order: 0 },
-      { x: annotation.x - boxWidth - gapX, y: annotation.anchorY - height - gapY, order: 1 },
-      { x: annotation.x + gapX, y: annotation.anchorY + gapY, order: 2 },
-      { x: annotation.x - boxWidth - gapX, y: annotation.anchorY + gapY, order: 3 },
-      { x: annotation.x - boxWidth / 2, y: annotation.anchorY - height - 46, order: 4 },
-      { x: annotation.x - boxWidth / 2, y: annotation.anchorY + 46, order: 5 },
-      ...makeEdgeCandidates(height, 6),
-      ...[-140, 140].flatMap((offset, index) => [
-        { x: annotation.x - boxWidth / 2 + offset, y: annotation.anchorY - height - 60, order: 12 + index * 2 },
-        { x: annotation.x - boxWidth / 2 + offset, y: annotation.anchorY + 60, order: 13 + index * 2 }
-      ])
+      { x: rightX, y: annotation.anchorY - height - gapY, order: 0 },
+      { x: leftX, y: annotation.anchorY - height - gapY, order: 1 },
+      { x: rightX, y: annotation.anchorY + gapY, order: 2 },
+      { x: leftX, y: annotation.anchorY + gapY, order: 3 },
+      { x: centeredX, y: annotation.anchorY - height - 58, order: 4 },
+      { x: centeredX, y: annotation.anchorY + 58, order: 5 },
+      ...[-170, 170].flatMap((offset, index) => [
+        { x: centeredX + offset, y: annotation.anchorY - height - 70, order: 6 + index * 2 },
+        { x: centeredX + offset, y: annotation.anchorY + 70, order: 7 + index * 2 }
+      ]),
+      ...[-230, 230, -310, 310].flatMap((offset, index) => [
+        { x: centeredX + offset, y: annotation.anchorY - height - 118, order: 10 + index * 2 },
+        { x: centeredX + offset, y: annotation.anchorY + 118, order: 11 + index * 2 }
+      ]),
+      ...makeEdgeCandidates(height, 18)
     ];
     const candidates = rawCandidates.map((candidate) => {
       const rect = {
@@ -1634,7 +1668,7 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
 
       return {
         ...rect,
-        score: pointCollisions * 12000 + lineCollisions * 3600 + boxCollisions * 42000 + edgePenalty + distance + candidate.order * 6
+        score: pointCollisions * 180000 + lineCollisions * 160000 + boxCollisions * 52000 + edgePenalty + distance * 4 + candidate.order * 8
       };
     });
     const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
