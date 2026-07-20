@@ -8,11 +8,11 @@ const MAX_SAVED_CHARTS = 5;
 const SHOW_OXYTOCIN_FEATURE = false;
 const STATION_VALUES = Array.from({ length: 11 }, (_, index) => index - 5);
 const DAY_VALUES = Array.from({ length: 8 }, (_, index) => index);
-const NOTE_LABEL_MAX_CHARS = 21;
-const NOTE_LABEL_MAX_WIDTH = 260;
-const NOTE_LABEL_LANE_LIMIT = 5;
-const NOTE_LABEL_LINE_HEIGHT = 18;
-const NOTE_LABEL_GAP = 12;
+const NOTE_LABEL_MAX_CHARS = 26;
+const NOTE_LABEL_MAX_WIDTH = 280;
+const NOTE_LABEL_LANE_LIMIT = 4;
+const NOTE_LABEL_LINE_HEIGHT = 15;
+const NOTE_LABEL_GAP = 8;
 const PATIENT_FIELDS = [
   "patientName",
   "patientAge",
@@ -670,7 +670,6 @@ function clinicalSummary(observations, startTime) {
 function buildSvgData(patient, observations, annotations = [], oxytocinEvents = []) {
   const baseWidth = 1440;
   const left = 118;
-  const noteObservations = observations.filter((observation) => observation.note.trim());
   const desiredGridHeight = 620;
   const hourWidth = 72;
   const maxObservationHour = Math.max(
@@ -696,26 +695,7 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
   };
   const horizontalGridWidth = horizontalGrid.right - horizontalGrid.left;
   const xForHour = (hour) => horizontalGrid.left + (clamp(hour, 0, maxHour) / maxHour) * horizontalGridWidth;
-  const noteLayoutMetrics = positionNoteLabels(
-    prepareNoteLabels(sortedObservations(observations, patient.startTime).flatMap((observation) => {
-      const status = pointStatus(observation, patient.startTime);
-
-      if (!status.validTime || !status.validDilation || !status.validStation || status.hour === null || !observation.note.trim()) {
-        return [];
-      }
-
-      return [{
-        observationId: observation.id,
-        x: xForHour(status.hour),
-        time: formatDisplayTime(observation.time),
-        text: observation.note.trim()
-      }];
-    })),
-    horizontalGrid
-  );
-  const top = noteObservations.length
-    ? Math.max(226, 154 + noteLayoutMetrics.usedLaneCount * noteLayoutMetrics.laneStride)
-    : 226;
+  const top = 226;
   const bottom = top + desiredGridHeight;
   const height = bottom + 116;
   const grid = {
@@ -783,6 +763,7 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
       notes.push({
         observationId: observation.id,
         x: xForHour(status.hour),
+        anchorY: status.dilation !== null ? yForDilation(status.dilation) : yForStation(status.station),
         hour: status.hour,
         time: formatDisplayTime(observation.time),
         text: observation.note.trim(),
@@ -1044,6 +1025,74 @@ function positionNoteLabels(preparedNotes, grid) {
   };
 }
 
+function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoints) {
+  const plottedPoints = [...dilationPoints, ...stationPoints];
+  const plottedSegments = [dilationPoints, stationPoints].flatMap((points) =>
+    points.slice(1).map((point, index) => [points[index], point])
+  );
+  const placedBoxes = [];
+  const padding = 10;
+  const pointInsideRect = (point, rect, extra = 10) =>
+    point.x >= rect.x - extra && point.x <= rect.x + rect.width + extra &&
+    point.y >= rect.y - extra && point.y <= rect.y + rect.height + extra;
+  const lineIntersectsRect = ([start, end], rect, extra = 6) => {
+    const left = rect.x - extra;
+    const right = rect.x + rect.width + extra;
+    const top = rect.y - extra;
+    const bottom = rect.y + rect.height + extra;
+    const steps = Math.max(4, Math.ceil(Math.hypot(end.x - start.x, end.y - start.y) / 14));
+
+    for (let step = 0; step <= steps; step += 1) {
+      const ratio = step / steps;
+      const x = start.x + (end.x - start.x) * ratio;
+      const y = start.y + (end.y - start.y) * ratio;
+
+      if (x >= left && x <= right && y >= top && y <= bottom) return true;
+    }
+
+    return false;
+  };
+  const boxesOverlap = (first, second, extra = 8) =>
+    first.x < second.x + second.width + extra &&
+    first.x + first.width + extra > second.x &&
+    first.y < second.y + second.height + extra &&
+    first.y + first.height + extra > second.y;
+
+  return preparedNotes.map((note) => {
+    const rawCandidates = [
+      { x: note.x - note.width / 2, y: note.anchorY - note.height - 16, order: 0 },
+      { x: note.x + 18, y: note.anchorY - note.height - 12, order: 1 },
+      { x: note.x - note.width - 18, y: note.anchorY - note.height - 12, order: 2 },
+      { x: note.x - note.width / 2, y: note.anchorY + 16, order: 3 },
+      { x: note.x + 18, y: note.anchorY + 12, order: 4 },
+      { x: note.x - note.width - 18, y: note.anchorY + 12, order: 5 },
+      { x: note.x - note.width / 2, y: note.anchorY - note.height - 52, order: 6 },
+      { x: note.x - note.width / 2, y: note.anchorY + 52, order: 7 }
+    ];
+    const candidates = rawCandidates.map((candidate) => {
+      const rect = {
+        ...note,
+        anchorX: note.x,
+        x: clamp(candidate.x, grid.left + padding, grid.right - note.width - padding),
+        y: clamp(candidate.y, grid.top + padding, grid.bottom - note.height - padding)
+      };
+      const pointCollisions = plottedPoints.filter((point) => pointInsideRect(point, rect)).length;
+      const lineCollisions = plottedSegments.filter((segment) => lineIntersectsRect(segment, rect)).length;
+      const boxCollisions = placedBoxes.filter((box) => boxesOverlap(rect, box)).length;
+      const distance = Math.hypot(rect.x + rect.width / 2 - note.x, rect.y + rect.height / 2 - note.anchorY);
+
+      return {
+        ...rect,
+        score: boxCollisions * 42000 + pointCollisions * 7000 + lineCollisions * 1400 + distance * 7 + candidate.order * 20
+      };
+    });
+    const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
+
+    placedBoxes.push(placement);
+    return placement;
+  });
+}
+
 function wrapHeaderValue(value, maxChars, maxLines = 5) {
   const lines = wrapText(value || "", maxChars);
 
@@ -1127,6 +1176,18 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
   const diagnosisLineHeight = 20;
   const residentY = diagnosisY + Math.max(diagnosisLines.length, 1) * diagnosisLineHeight + 2;
   const height = hasFooter ? Math.max(data.height, residentY + 24) : data.height;
+  const noteLayouts = positionChartNoteLabels(
+    prepareNoteLabels(data.notes.filter((note) => !note.isOxytocinNote)),
+    grid,
+    data.dilationPoints,
+    data.stationPoints
+  );
+  const noteAvoidBoxes = noteLayouts.map((note) => ({
+    x: note.x,
+    y: note.y,
+    width: note.width,
+    height: note.height
+  }));
   const presentationTop = Math.max(0, data.notes.length ? Math.min(legendY - 6, grid.top - 150) : legendY - 6);
   const presentationBox = {
     x: Math.max(0, grid.left - 92),
@@ -1259,10 +1320,10 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
       <text x={(grid.left + grid.right) / 2} y={timeLabelY} textAnchor="middle" fontSize="22" fontWeight="900" fill="#111820" data-export-text="axis-title">
         TIME (HOURS)
       </text>
-      <text x={grid.left} y={legendY} fontSize="18" fontWeight="900" fill="#0f63ce" data-export-text="legend">
+      <text x={grid.left} y={legendY} fontSize="18" fontWeight="900" fill="#0f63ce" data-export-remove="legend">
         Blue: cervical dilation
       </text>
-      <text x={grid.left + 300} y={legendY} fontSize="18" fontWeight="900" fill="#c62828" data-export-text="legend">
+      <text x={grid.left + 300} y={legendY} fontSize="18" fontWeight="900" fill="#c62828" data-export-remove="legend">
         Red: station
       </text>
 
@@ -1281,8 +1342,8 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
         />
       ))}
       {SHOW_OXYTOCIN_FEATURE && <OxytocinTrack bands={data.oxytocinBands} changes={data.oxytocinChanges} grid={grid} />}
-      <NoteLabels notes={data.notes} grid={grid} activeObservationId={activeObservationId} />
-      <ChartAnnotationLabels annotations={data.annotations} grid={grid} dilationPoints={data.dilationPoints} stationPoints={data.stationPoints} activeAnnotationId={activeAnnotationId} />
+      <NoteLabels layouts={noteLayouts} activeObservationId={activeObservationId} />
+      <ChartAnnotationLabels annotations={data.annotations} grid={grid} dilationPoints={data.dilationPoints} stationPoints={data.stationPoints} avoidBoxes={noteAvoidBoxes} activeAnnotationId={activeAnnotationId} />
       <StartConnectors data={data} />
       <Series
         points={data.dilationPoints.map((point) => ({ ...point, time: data.timeFromHour(point.hour) }))}
@@ -1331,24 +1392,26 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
   );
 }
 
-function NoteLabels({ notes, grid, activeObservationId }) {
-  const { layouts, laneStride } = positionNoteLabels(prepareNoteLabels(notes), grid);
-
+function NoteLabels({ layouts, activeObservationId }) {
   return layouts.map((note) => {
-    const y = grid.top - NOTE_LABEL_GAP - note.laneIndex * laneStride - note.height;
-    const connectorY = y + note.height;
-    const fill = note.isOxytocinNote ? "#fef3c7" : "#f8f6f2";
-    const stroke = note.isOxytocinNote ? "#d6a72c" : "#e2ddd3";
-    const ink = note.isOxytocinNote ? "#6f4b00" : "#4b4034";
+    const boxConnectorX = clamp(note.anchorX, note.x + 12, note.x + note.width - 12);
+    const boxConnectorY = note.anchorY < note.y
+      ? note.y
+      : note.anchorY > note.y + note.height
+        ? note.y + note.height
+        : clamp(note.anchorY, note.y + 12, note.y + note.height - 12);
+    const fill = "#f8f6f2";
+    const stroke = "#d3ccbf";
+    const ink = "#4b4034";
     const isActive = activeObservationId && note.observationId === activeObservationId;
 
     return (
-      <g key={`${note.x}-${note.text}`} className={isActive ? "active-chart-callout" : ""} data-presentation-note="true" data-presentation-note-y={y}>
-        <polyline points={`${note.x},${grid.top} ${note.x},${connectorY} ${note.labelX + note.width / 2},${connectorY}`} fill="none" stroke={stroke} strokeWidth={isActive ? "2.6" : "1.2"} />
-        <rect x={note.labelX} y={y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.4" : "1"} opacity="0.98" data-export-box="note" />
-        <text x={note.labelX + note.width / 2} y={y + 18} textAnchor="middle" fontSize="13" fontWeight="900" fill={ink} data-export-text="note">
+      <g key={`${note.x}-${note.text}`} className={isActive ? "active-chart-callout" : ""} data-presentation-note="true" data-presentation-note-y={note.y}>
+        <line x1={boxConnectorX} y1={boxConnectorY} x2={note.anchorX} y2={note.anchorY} stroke={stroke} strokeWidth={isActive ? "2.6" : "1.2"} strokeDasharray="4 5" />
+        <rect x={note.x} y={note.y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.4" : "1.1"} opacity="0.94" data-export-box="note" />
+        <text x={note.x + note.width / 2} y={note.y + 18} textAnchor="middle" fontSize="13" fontWeight="900" fill={ink} data-export-text="note">
           {note.labelLines.map((line, index) => (
-            <tspan key={`${line}-${index}`} x={note.labelX + note.width / 2} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
+            <tspan key={`${line}-${index}`} x={note.x + note.width / 2} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
               {line}
             </tspan>
           ))}
@@ -1474,7 +1537,7 @@ function OxytocinTrack({ bands, changes, grid }) {
   );
 }
 
-function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoints, activeAnnotationId }) {
+function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoints, avoidBoxes = [], activeAnnotationId }) {
   const styles = {
     clinical: { fill: "#fce7f3", stroke: "#db8fba", label: "Clinical note" },
     medication: { fill: "#fef3c7", stroke: "#d6a72c", label: "Medication" },
@@ -1487,7 +1550,8 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
   const plottedSegments = [dilationPoints, stationPoints].flatMap((points) =>
     points.slice(1).map((point, index) => [points[index], point])
   );
-  const placedBoxes = [];
+  const placedBoxes = [...avoidBoxes];
+  const gridPadding = 10;
   const pointInsideRect = (point, rect, padding = 12) =>
     point.x >= rect.x - padding && point.x <= rect.x + rect.width + padding &&
     point.y >= rect.y - padding && point.y <= rect.y + rect.height + padding;
@@ -1514,6 +1578,19 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
     first.y < second.y + second.height + padding &&
     first.y + first.height + padding > second.y;
 
+  const makeEdgeCandidates = (height, orderStart = 0) => {
+    const slots = [
+      [grid.left + gridPadding, grid.top + gridPadding],
+      [grid.right - boxWidth - gridPadding, grid.top + gridPadding],
+      [grid.left + gridPadding, grid.bottom - height - gridPadding],
+      [grid.right - boxWidth - gridPadding, grid.bottom - height - gridPadding],
+      [(grid.left + grid.right - boxWidth) / 2, grid.top + gridPadding],
+      [(grid.left + grid.right - boxWidth) / 2, grid.bottom - height - gridPadding]
+    ];
+
+    return slots.map(([x, y], index) => ({ x, y, order: orderStart + index }));
+  };
+
   return annotations.slice(0, 12).map((annotation) => {
     const style = styles[annotation.type] || styles.clinical;
     const isActive = activeAnnotationId && annotation.id === activeAnnotationId;
@@ -1524,19 +1601,22 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
     const gapX = 28;
     const gapY = 24;
     const rawCandidates = [
-      { x: annotation.x + gapX, y: annotation.anchorY - height - gapY },
-      { x: annotation.x - boxWidth - gapX, y: annotation.anchorY - height - gapY },
-      { x: annotation.x + gapX, y: annotation.anchorY + gapY },
-      { x: annotation.x - boxWidth - gapX, y: annotation.anchorY + gapY },
-      { x: annotation.x - boxWidth / 2, y: annotation.anchorY - height - 46 },
-      { x: annotation.x - boxWidth / 2, y: annotation.anchorY + 46 },
-      { x: grid.left + 10, y: grid.bottom - height - 12 },
-      { x: grid.right - boxWidth - 10, y: grid.top + 12 }
+      { x: annotation.x + gapX, y: annotation.anchorY - height - gapY, order: 0 },
+      { x: annotation.x - boxWidth - gapX, y: annotation.anchorY - height - gapY, order: 1 },
+      { x: annotation.x + gapX, y: annotation.anchorY + gapY, order: 2 },
+      { x: annotation.x - boxWidth - gapX, y: annotation.anchorY + gapY, order: 3 },
+      { x: annotation.x - boxWidth / 2, y: annotation.anchorY - height - 46, order: 4 },
+      { x: annotation.x - boxWidth / 2, y: annotation.anchorY + 46, order: 5 },
+      ...makeEdgeCandidates(height, 6),
+      ...[-140, 140].flatMap((offset, index) => [
+        { x: annotation.x - boxWidth / 2 + offset, y: annotation.anchorY - height - 60, order: 12 + index * 2 },
+        { x: annotation.x - boxWidth / 2 + offset, y: annotation.anchorY + 60, order: 13 + index * 2 }
+      ])
     ];
-    const candidates = rawCandidates.map((candidate, order) => {
+    const candidates = rawCandidates.map((candidate) => {
       const rect = {
-        x: clamp(candidate.x, grid.left + 10, grid.right - boxWidth - 10),
-        y: clamp(candidate.y, grid.top + 10, grid.bottom - height - 10),
+        x: clamp(candidate.x, grid.left + gridPadding, grid.right - boxWidth - gridPadding),
+        y: clamp(candidate.y, grid.top + gridPadding, grid.bottom - height - gridPadding),
         width: boxWidth,
         height
       };
@@ -1546,10 +1626,15 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
       const centerX = rect.x + rect.width / 2;
       const centerY = rect.y + rect.height / 2;
       const distance = Math.hypot(centerX - annotation.x, centerY - annotation.anchorY);
+      const edgePenalty = (
+        (rect.x <= grid.left + gridPadding + 1 || rect.x + rect.width >= grid.right - gridPadding - 1) ? 80 : 0
+      ) + (
+        (rect.y <= grid.top + gridPadding + 1 || rect.y + rect.height >= grid.bottom - gridPadding - 1) ? 50 : 0
+      );
 
       return {
         ...rect,
-        score: pointCollisions * 10000 + lineCollisions * 2600 + boxCollisions * 16000 + distance + order * 4
+        score: pointCollisions * 12000 + lineCollisions * 3600 + boxCollisions * 42000 + edgePenalty + distance + candidate.order * 6
       };
     });
     const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
@@ -1960,20 +2045,9 @@ function prepareSvgForPhotoExport(clone) {
     node.setAttribute("font-weight", "900");
   });
 
-  clone.querySelectorAll("[data-export-text='legend']").forEach((node) => {
-    node.setAttribute("font-size", "21");
-    node.setAttribute("font-weight", "900");
-  });
-
   clone.querySelectorAll("[data-export-text='note']").forEach((node) => {
     node.setAttribute("font-size", "15");
     node.setAttribute("font-weight", "900");
-
-    const firstLine = node.querySelector("tspan");
-    if (firstLine) {
-      firstLine.textContent = firstLine.textContent.replace(/^[^·]+·\s*/, "");
-      if (!firstLine.textContent.trim()) firstLine.remove();
-    }
   });
 
   clone.querySelectorAll("[data-export-text='annotation-title']").forEach((node) => {
@@ -2000,6 +2074,7 @@ function serializeSvg(chartNode, viewBoxOverride = null, options = {}) {
   const clone = chartNode.cloneNode(true);
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   clone.dataset.exportKind = options.presentationExport ? "presentation" : "full";
+  clone.querySelectorAll("[data-export-remove='legend']").forEach((node) => node.remove());
 
   if (options.photoExport) {
     prepareSvgForPhotoExport(clone);
@@ -2749,10 +2824,7 @@ export default function App() {
 
     const gridTop = Number(chartRef.current.dataset.presentationGridTop);
     const gridBottom = Number(chartRef.current.dataset.presentationGridBottom);
-    const noteTops = [...chartRef.current.querySelectorAll('[data-presentation-note="true"]')]
-      .map((note) => Number(note.dataset.presentationNoteY))
-      .filter(Number.isFinite);
-    const cropTop = noteTops.length ? Math.max(0, Math.min(...noteTops) - 36) : Math.max(0, gridTop - 36);
+    const cropTop = Math.max(0, gridTop - 24);
     const cropBottom = gridBottom + 116;
     const presentationBox = {
       x: Number(chartRef.current.dataset.presentationX),
