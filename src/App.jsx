@@ -1032,6 +1032,8 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
   );
   const placedBoxes = [];
   const padding = 10;
+  const minY = grid.top - 82;
+  const maxY = grid.bottom + 10;
   const pointInsideRect = (point, rect, extra = 18) =>
     point.x >= rect.x - extra && point.x <= rect.x + rect.width + extra &&
     point.y >= rect.y - extra && point.y <= rect.y + rect.height + extra;
@@ -1062,7 +1064,12 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
     const centeredX = note.x - note.width / 2;
     const rightX = note.x + 22;
     const leftX = note.x - note.width - 22;
+    const aboveGridY = grid.top - note.height - 10;
+    const belowGridY = grid.bottom + 10;
     const rawCandidates = [
+      { x: centeredX, y: aboveGridY, order: -2 },
+      { x: rightX, y: aboveGridY, order: -1 },
+      { x: leftX, y: aboveGridY, order: 0 },
       { x: centeredX, y: note.anchorY - note.height - 18, order: 0 },
       { x: rightX, y: note.anchorY - note.height - 14, order: 1 },
       { x: leftX, y: note.anchorY - note.height - 14, order: 2 },
@@ -1080,23 +1087,27 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
       { x: rightX, y: note.anchorY - note.height - 118, order: 14 },
       { x: leftX, y: note.anchorY - note.height - 118, order: 15 },
       { x: rightX, y: note.anchorY + 118, order: 16 },
-      { x: leftX, y: note.anchorY + 118, order: 17 }
+      { x: leftX, y: note.anchorY + 118, order: 17 },
+      { x: centeredX, y: belowGridY, order: 18 },
+      { x: rightX, y: belowGridY, order: 19 },
+      { x: leftX, y: belowGridY, order: 20 }
     ];
     const candidates = rawCandidates.map((candidate) => {
       const rect = {
         ...note,
         anchorX: note.x,
         x: clamp(candidate.x, grid.left + padding, grid.right - note.width - padding),
-        y: clamp(candidate.y, grid.top + padding, grid.bottom - note.height - padding)
+        y: clamp(candidate.y, minY, maxY)
       };
       const pointCollisions = plottedPoints.filter((point) => pointInsideRect(point, rect)).length;
       const lineCollisions = plottedSegments.filter((segment) => lineIntersectsRect(segment, rect)).length;
       const boxCollisions = placedBoxes.filter((box) => boxesOverlap(rect, box)).length;
       const distance = Math.hypot(rect.x + rect.width / 2 - note.x, rect.y + rect.height / 2 - note.anchorY);
+      const outsideGridPenalty = rect.y < grid.top || rect.y + rect.height > grid.bottom ? 250 : 0;
 
       return {
         ...rect,
-        score: boxCollisions * 42000 + pointCollisions * 180000 + lineCollisions * 160000 + distance * 7 + candidate.order * 20
+        score: boxCollisions * 42000 + pointCollisions * 240000 + lineCollisions * 220000 + distance * 5 + outsideGridPenalty + candidate.order * 20
       };
     });
     const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
@@ -1201,7 +1212,8 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
     width: note.width,
     height: note.height
   }));
-  const presentationTop = Math.max(0, data.notes.length ? Math.min(legendY - 6, grid.top - 150) : legendY - 6);
+  const noteTop = noteLayouts.length ? Math.min(...noteLayouts.map((note) => note.y)) : Infinity;
+  const presentationTop = Math.max(0, Math.min(legendY - 6, grid.top - 24, noteTop - 24));
   const presentationBox = {
     x: Math.max(0, grid.left - 92),
     y: presentationTop,
@@ -2858,7 +2870,10 @@ export default function App() {
 
     const gridTop = Number(chartRef.current.dataset.presentationGridTop);
     const gridBottom = Number(chartRef.current.dataset.presentationGridBottom);
-    const cropTop = Math.max(0, gridTop - 24);
+    const noteTops = [...chartRef.current.querySelectorAll('[data-presentation-note="true"]')]
+      .map((note) => Number(note.dataset.presentationNoteY))
+      .filter(Number.isFinite);
+    const cropTop = Math.max(0, Math.min(gridTop - 24, ...noteTops.map((top) => top - 24)));
     const cropBottom = gridBottom + 116;
     const presentationBox = {
       x: Number(chartRef.current.dataset.presentationX),
