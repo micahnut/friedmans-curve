@@ -1054,7 +1054,7 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
 
     return false;
   };
-  const boxesOverlap = (first, second, extra = 8) =>
+  const boxesOverlap = (first, second, extra = 18) =>
     first.x < second.x + second.width + extra &&
     first.x + first.width + extra > second.x &&
     first.y < second.y + second.height + extra &&
@@ -1066,6 +1066,15 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
     const leftX = note.x - note.width - 22;
     const aboveGridY = grid.top - note.height - 10;
     const belowGridY = grid.bottom + 10;
+    const insideSlotCandidates = [0.16, 0.32, 0.48, 0.64, 0.8]
+      .flatMap((xRatio, xIndex) => {
+        const slotX = grid.left + (grid.right - grid.left) * xRatio - note.width / 2;
+        return [0.1, 0.24, 0.39, 0.55, 0.71, 0.86].map((yRatio, yIndex) => ({
+          x: slotX,
+          y: grid.top + (grid.bottom - grid.top - note.height) * yRatio,
+          order: 18 + xIndex * 6 + yIndex
+        }));
+      });
     const rawCandidates = [
       { x: centeredX, y: note.anchorY - note.height - 18, order: 0 },
       { x: rightX, y: note.anchorY - note.height - 14, order: 1 },
@@ -1085,12 +1094,13 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
       { x: leftX, y: note.anchorY - note.height - 118, order: 15 },
       { x: rightX, y: note.anchorY + 118, order: 16 },
       { x: leftX, y: note.anchorY + 118, order: 17 },
-      { x: centeredX, y: aboveGridY, order: 18 },
-      { x: rightX, y: aboveGridY, order: 19 },
-      { x: leftX, y: aboveGridY, order: 20 },
-      { x: centeredX, y: belowGridY, order: 21 },
-      { x: rightX, y: belowGridY, order: 22 },
-      { x: leftX, y: belowGridY, order: 23 }
+      ...insideSlotCandidates,
+      { x: centeredX, y: aboveGridY, order: 100 },
+      { x: rightX, y: aboveGridY, order: 101 },
+      { x: leftX, y: aboveGridY, order: 102 },
+      { x: centeredX, y: belowGridY, order: 103 },
+      { x: rightX, y: belowGridY, order: 104 },
+      { x: leftX, y: belowGridY, order: 105 }
     ];
     const candidates = rawCandidates.map((candidate) => {
       const rect = {
@@ -1107,7 +1117,7 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
 
       return {
         ...rect,
-        score: boxCollisions * 52000 + pointCollisions * 180000 + lineCollisions * 160000 + distance * 5 + outsideGridPenalty + candidate.order * 20
+        score: boxCollisions * 300000 + pointCollisions * 180000 + lineCollisions * 160000 + distance * 5 + outsideGridPenalty + candidate.order * 20
       };
     });
     const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
