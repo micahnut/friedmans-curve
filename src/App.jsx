@@ -1408,13 +1408,6 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
       <text x={(grid.left + grid.right) / 2} y={timeLabelY} textAnchor="middle" fontSize="22" fontWeight="900" fill="#111820" data-export-text="axis-title">
         TIME (HOURS)
       </text>
-      <text x={grid.left} y={legendY} fontSize="18" fontWeight="900" fill="#0f63ce" data-export-remove="legend">
-        Blue: cervical dilation
-      </text>
-      <text x={grid.left + 300} y={legendY} fontSize="18" fontWeight="900" fill="#c62828" data-export-remove="legend">
-        Red: station
-      </text>
-
       {data.guideLines.map((line) => (
         <line
           key={`guide-${line.hour}`}
@@ -2015,17 +2008,19 @@ function GuidePage() {
               <li>Final Diagnosis for the full chart footer</li>
               <li>Resident for the full chart signature line</li>
               <li>Long values wrap automatically on the chart.</li>
+              <li>The latest summary identifies the blue cervix value and red station value, so the chart no longer needs a separate legend.</li>
             </ul>
           </article>
 
           <article>
-            <h3>Save and Restore</h3>
-            <p>Use Save to keep the current chart in this browser. Restore opens the saved chart list.</p>
+            <h3>Manage Charts</h3>
+            <p>Use Manage for browser saves, chart-file uploads, sample data, resets, and saved-chart retrieval.</p>
             <ul>
-              <li>Up to 5 patient charts are saved locally.</li>
-              <li>Saving a 6th chart asks before removing the oldest saved chart.</li>
-              <li>Restoring a chart asks before replacing the chart currently on screen.</li>
-              <li>Saved charts stay on this device and browser only.</li>
+              <li>Save in browser keeps up to 5 patient charts on this device and browser.</li>
+              <li>Upload chart file restores a previously exported .friedman.json file.</li>
+              <li>Load sample replaces the current chart with the demo patient chart.</li>
+              <li>Reset chart clears the current patient details, observations, annotations, and oxytocin events.</li>
+              <li>Restoring, loading, or resetting asks before replacing work already on screen.</li>
             </ul>
           </article>
 
@@ -2054,10 +2049,13 @@ function GuidePage() {
 
           <article>
             <h3>Timeline Notes</h3>
-            <p>Short observation notes appear above the graph with connector lines to their exact timestamp. Use these for concise labels such as admission, medication, mount, or baby out.</p>
+            <p>Short observation notes appear inside the graph as callouts with connector lines. Use these for concise labels such as admission, medication, mount, or baby out.</p>
             <ul>
-              <li>Notes can be used even when the row has no cervix or station value.</li>
-              <li>Nearby notes are staggered into lanes to reduce overlap.</li>
+              <li>Notes with cervix connect to the blue plotted point.</li>
+              <li>Notes with station but no cervix connect to the red station point.</li>
+              <li>Notes with no cervix or station stay at their real chart hour.</li>
+              <li>A first note-only row anchors at the origin only when its time equals the chart Start Time.</li>
+              <li>The layout looks for open chart space so callouts avoid the plotted lines as much as possible.</li>
               <li>Notes containing oxy or oxytocin tint amber and can highlight oxytocin activity on the chart.</li>
             </ul>
           </article>
@@ -2070,6 +2068,7 @@ function GuidePage() {
               <li>Notes such as oxy stopped, oxytocin stopped, off, held, paused, or discontinued stop the band.</li>
               <li>If no stop note exists, the band continues to the latest plotted clinical entry and is labeled as active.</li>
               <li>Titration notes such as Titrated oxy to 12 gtts/min keep the active band running.</li>
+              <li>Exports simplify the band label to OXYTOCIN while the live chart keeps active/start/stop details for editing.</li>
             </ul>
           </article>
 
@@ -2090,7 +2089,7 @@ function GuidePage() {
               <li>Choose whether the callout connects to the cervix or station point.</li>
               <li>Choose a type: clinical note, medication, intervention, or outcome.</li>
               <li>Annotations can be edited or deleted after adding.</li>
-              <li>Annotation text is centered inside the chart and exported callout boxes.</li>
+              <li>Annotations use connector lines and try to stay clear of the plotted graph and note callouts.</li>
             </ul>
           </article>
 
@@ -2129,9 +2128,9 @@ function GuidePage() {
               <li>Print uses the same cleaned content as the full chart image export.</li>
               <li>Presentation PNG is a 2560 × 1440 slide-ready image.</li>
               <li>Full chart PNG is best for sharing the complete record.</li>
-              <li>SVG is best for crisp editing or archiving the live chart.</li>
               <li>Chart data file downloads an uploadable copy that can restore the chart later.</li>
-              <li>Photo-style exports and print hide small clock-time labels and use larger readable chart text.</li>
+              <li>Exports remove redundant blue/red legend text and use larger readable chart text.</li>
+              <li>Oxytocin activity exports as OXYTOCIN only, without active/start/no-stop helper text.</li>
             </ul>
           </article>
 
@@ -2858,12 +2857,6 @@ export default function App() {
     setConfirmation(null);
   };
 
-  const downloadSvg = () => {
-    if (!chartRef.current) return;
-    download("friedmans-curve.svg", serializeSvg(chartRef.current), "image/svg+xml;charset=utf-8");
-    notify("SVG downloaded.");
-  };
-
   const downloadChartFile = () => {
     const chartFile = createPortableChartFile(state);
 
@@ -3346,10 +3339,6 @@ export default function App() {
               </button>
               {showExportMenu && (
                 <div className="export-options" role="menu" aria-label="Export chart">
-                  <button type="button" role="menuitem" onClick={() => { printChart(); setShowExportMenu(false); }}>
-                    Print chart
-                    <span>Prints the same content as the full chart export</span>
-                  </button>
                   <button type="button" role="menuitem" onClick={() => { downloadPresentationPng(); setShowExportMenu(false); }}>
                     Presentation PNG (16:9)
                     <span>Graph-focused for slides</span>
@@ -3358,9 +3347,9 @@ export default function App() {
                     Full chart PNG
                     <span>Includes patient details</span>
                   </button>
-                  <button type="button" role="menuitem" onClick={() => { downloadSvg(); setShowExportMenu(false); }}>
-                    Download SVG
-                    <span>Best for editing</span>
+                  <button type="button" role="menuitem" onClick={() => { printChart(); setShowExportMenu(false); }}>
+                    Print chart
+                    <span>Prints the same content as the full chart export</span>
                   </button>
                   <button type="button" role="menuitem" onClick={() => { downloadChartFile(); setShowExportMenu(false); }}>
                     Chart data file
