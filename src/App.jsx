@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 const STORAGE_KEY = "friedmans-curve-builder-v2";
 const SAVED_CHARTS_KEY = "friedmans-curve-saved-charts-v1";
 const MAX_SAVED_CHARTS = 5;
+const CHART_FILE_TYPE = "friedmans-curve-chart";
+const CHART_FILE_VERSION = 1;
 // Oxytocin infusion tracking is intentionally hidden for now.
 // Change this to true when the feature is ready to return to the UI.
 const SHOW_OXYTOCIN_FEATURE = false;
@@ -300,6 +302,28 @@ function createSavedChart(chartState) {
     label: chartSaveLabel(savedState),
     state: savedState
   };
+}
+
+function createPortableChartFile(chartState) {
+  return {
+    type: CHART_FILE_TYPE,
+    version: CHART_FILE_VERSION,
+    exportedAt: new Date().toISOString(),
+    label: chartSaveLabel(chartState),
+    state: normalizeChartState(chartState)
+  };
+}
+
+function chartFileName(chartState) {
+  const patientName = chartState.patient.patientName?.trim() || "untitled";
+  const date = chartState.patient.patientDate || todayValue();
+  const safeName = patientName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "untitled";
+
+  return `friedmans-curve-${safeName}-${date}.friedman.json`;
 }
 
 function loadSavedCharts() {
@@ -714,10 +738,26 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
   const chartAnnotations = [];
   const oxytocinNoteHighlights = [];
   const oxytocinNoteEvents = [];
+  const sortedChartObservations = sortedObservations(observations, patient.startTime);
+  const firstNoteOnlyObservation = sortedChartObservations.find((observation) => {
+    const status = pointStatus(observation, patient.startTime);
+    const blockingWarnings = observationBlockingWarnings(observation, patient.startTime, observations, observation.id);
+
+    return (
+      status.validTime &&
+      status.validDilation &&
+      status.validStation &&
+      blockingWarnings.length === 0 &&
+      status.hour !== null &&
+      observation.note.trim() &&
+      status.dilation === null &&
+      status.station === null
+    );
+  });
   let validCount = 0;
   let warningCount = 0;
 
-  sortedObservations(observations, patient.startTime).forEach((observation) => {
+  sortedChartObservations.forEach((observation) => {
     const status = pointStatus(observation, patient.startTime);
     const blockingWarnings = observationBlockingWarnings(observation, patient.startTime, observations, observation.id);
 
@@ -759,12 +799,17 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
     if (observation.note.trim()) {
       const isOxytocinNote = noteMentionsOxytocin(observation.note);
       const isOxytocinStopNote = noteStopsOxytocin(observation.note);
+      const anchorsAtOrigin = observation.id === firstNoteOnlyObservation?.id && status.dilation === null && status.station === null;
 
       notes.push({
         observationId: observation.id,
-        x: xForHour(status.hour),
-        anchorY: status.dilation !== null ? yForDilation(status.dilation) : yForStation(status.station),
-        hour: status.hour,
+        x: anchorsAtOrigin ? xForHour(0) : xForHour(status.hour),
+        anchorY: anchorsAtOrigin
+          ? yForDilation(0)
+          : status.dilation !== null
+            ? yForDilation(status.dilation)
+            : yForStation(status.station),
+        hour: anchorsAtOrigin ? 0 : status.hour,
         time: formatDisplayTime(observation.time),
         text: observation.note.trim(),
         isOxytocinNote
@@ -1439,24 +1484,23 @@ function NoteLabels({ layouts, activeObservationId }) {
         ? note.y + note.height
         : clamp(note.anchorY, note.y + 12, note.y + note.height - 12);
     const fill = "#f8f6f2";
-    const stroke = "#64748b";
+    const stroke = "#475569";
     const ink = "#4b4034";
     const isActive = activeObservationId && note.observationId === activeObservationId;
 
     return (
       <g key={`${note.x}-${note.text}`} className={isActive ? "active-chart-callout" : ""} data-presentation-note="true" data-presentation-note-y={note.y}>
         <line
-          x1={boxConnectorX}
-          y1={boxConnectorY}
-          x2={note.anchorX}
-          y2={note.anchorY}
+          x1={note.anchorX}
+          y1={note.anchorY}
+          x2={boxConnectorX}
+          y2={boxConnectorY}
           stroke={stroke}
-          strokeWidth={isActive ? "2.6" : "1.35"}
+          strokeWidth={isActive ? "2.8" : "1.55"}
           strokeLinecap="round"
-          markerEnd="url(#note-arrow)"
-          opacity="0.86"
+          opacity="0.78"
         />
-        <circle cx={note.anchorX} cy={note.anchorY} r="3.4" fill="#ffffff" stroke={stroke} strokeWidth="1.4" opacity="0.92" />
+        <circle cx={note.anchorX} cy={note.anchorY} r="3.6" fill="#ffffff" stroke={stroke} strokeWidth="1.5" opacity="0.95" />
         <rect x={note.x} y={note.y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.4" : "1.1"} opacity="0.99" data-export-box="note" />
         <text x={note.x + note.width / 2} y={note.y + 18} textAnchor="middle" fontSize="13" fontWeight="900" fill={ink} data-export-text="note">
           {note.labelLines.map((line, index) => (
@@ -1848,6 +1892,16 @@ function Icon({ name }) {
     );
   }
 
+  if (name === "upload") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M12 16V4" />
+        <path d="M7 9l5-5 5 5" />
+        <path d="M5 20h14" />
+      </svg>
+    );
+  }
+
   if (name === "reset") {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -2055,6 +2109,7 @@ function GuidePage() {
               <li>Presentation PNG is a 2560 × 1440 slide-ready image.</li>
               <li>Full chart PNG is best for sharing the complete record.</li>
               <li>SVG is best for crisp editing or archiving the live chart.</li>
+              <li>Chart data file downloads an uploadable copy that can restore the chart later.</li>
               <li>Photo-style exports and print hide small clock-time labels and use larger readable chart text.</li>
             </ul>
           </article>
@@ -2184,6 +2239,7 @@ export default function App() {
   const chartRef = useRef(null);
   const exportMenuRef = useRef(null);
   const restoreMenuRef = useRef(null);
+  const chartFileInputRef = useRef(null);
   const chartPinchRef = useRef({ distance: 0, zoom: 1 });
   const observations = useMemo(
     () => sortedObservations(state.observations, state.patient.startTime),
@@ -2419,6 +2475,20 @@ export default function App() {
       message,
       tone
     });
+  };
+
+  const applyChartState = (nextState, message) => {
+    const restoredState = normalizeChartState(nextState);
+
+    setState(restoredState);
+    setNewObservation(nextObservationDraft(restoredState.observations, restoredState.patient.startTime));
+    setNewAnnotation(createAnnotationDraft({ time: restoredState.patient.startTime }));
+    setNewOxytocinEvent(createOxytocinDraft({ time: restoredState.patient.startTime }));
+    setExpandedObservationId(null);
+    setEditingAnnotationId(null);
+    setShowMobileEntrySheet(false);
+    setShowMobileAnnotationSheet(false);
+    notify(message);
   };
 
   const updatePatient = (field, value) => {
@@ -2676,17 +2746,7 @@ export default function App() {
   };
 
   const confirmRestoreSavedChart = (savedChart) => {
-    const restoredState = normalizeChartState(savedChart.state);
-
-    setState(restoredState);
-    setNewObservation(nextObservationDraft(restoredState.observations, restoredState.patient.startTime));
-    setNewAnnotation(createAnnotationDraft({ time: restoredState.patient.startTime }));
-    setNewOxytocinEvent(createOxytocinDraft({ time: restoredState.patient.startTime }));
-    setExpandedObservationId(null);
-    setEditingAnnotationId(null);
-    setShowMobileEntrySheet(false);
-    setShowMobileAnnotationSheet(false);
-    notify("Saved chart restored.");
+    applyChartState(savedChart.state, "Saved chart restored.");
   };
 
   const deleteSavedChart = (savedChart) => {
@@ -2778,6 +2838,42 @@ export default function App() {
     if (!chartRef.current) return;
     download("friedmans-curve.svg", serializeSvg(chartRef.current), "image/svg+xml;charset=utf-8");
     notify("SVG downloaded.");
+  };
+
+  const downloadChartFile = () => {
+    const chartFile = createPortableChartFile(state);
+
+    download(chartFileName(chartFile.state), JSON.stringify(chartFile, null, 2), "application/json;charset=utf-8");
+    notify("Chart data file downloaded.");
+  };
+
+  const uploadChartFile = () => {
+    chartFileInputRef.current?.click();
+  };
+
+  const importChartFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    try {
+      const payload = JSON.parse(await file.text());
+      const chartState = payload?.type === CHART_FILE_TYPE && payload?.state
+        ? payload.state
+        : payload;
+
+      if (!chartState?.patient || !Array.isArray(chartState?.observations)) {
+        notify("That file does not look like an exported Friedman chart.", "warning");
+        return;
+      }
+
+      applyChartState(chartState, "Uploaded chart file restored.");
+      setShowRestoreMenu(false);
+      setShowExportMenu(false);
+    } catch {
+      notify("Could not read that chart file.", "warning");
+    }
   };
 
   const downloadPng = () => {
@@ -3126,14 +3222,14 @@ export default function App() {
             </div>
             {!showGuide && (
               <div className="title-utility-actions">
-                <button className="ghost-button compact-title-button" type="button" onClick={loadSample}>
-                  <Icon name="sample" />
-                  Load Sample
-                </button>
-                <button className="ghost-button compact-title-button" type="button" onClick={saveCurrentChart}>
-                  <Icon name="save" />
-                  Save
-                </button>
+                <input
+                  ref={chartFileInputRef}
+                  className="visually-hidden-file-input"
+                  type="file"
+                  accept=".friedman.json,application/json"
+                  aria-label="Upload exported Friedman chart file"
+                  onChange={importChartFile}
+                />
                 <div className="restore-menu" ref={restoreMenuRef}>
                   <button
                     className="ghost-button compact-title-button"
@@ -3143,11 +3239,44 @@ export default function App() {
                     onClick={() => setShowRestoreMenu((open) => !open)}
                   >
                     <Icon name="restore" />
-                    Restore
+                    Manage
                   </button>
                   {showRestoreMenu && (
-                    <div className="restore-options" role="menu" aria-label="Saved patient charts">
+                    <div className="restore-options" role="menu" aria-label="Manage chart data">
                       <div className="restore-menu-heading">
+                        <strong>Chart actions</strong>
+                      </div>
+                      <div className="manage-menu-actions">
+                        <button type="button" role="menuitem" onClick={() => { saveCurrentChart(); setShowRestoreMenu(false); }}>
+                          <Icon name="save" />
+                          <span>
+                            Save in browser
+                            <em>Keep this chart on this device</em>
+                          </span>
+                        </button>
+                        <button type="button" role="menuitem" onClick={() => { uploadChartFile(); setShowRestoreMenu(false); }}>
+                          <Icon name="upload" />
+                          <span>
+                            Upload chart file
+                            <em>Restore a .friedman.json file</em>
+                          </span>
+                        </button>
+                        <button type="button" role="menuitem" onClick={() => { loadSample(); setShowRestoreMenu(false); }}>
+                          <Icon name="sample" />
+                          <span>
+                            Load sample
+                            <em>Try the demo patient chart</em>
+                          </span>
+                        </button>
+                        <button className="manage-danger-action" type="button" role="menuitem" onClick={() => { resetPatient(); setShowRestoreMenu(false); }}>
+                          <Icon name="reset" />
+                          <span>
+                            Reset chart
+                            <em>Clear current patient data</em>
+                          </span>
+                        </button>
+                      </div>
+                      <div className="restore-menu-heading saved-heading">
                         <strong>Saved charts</strong>
                         <span>{savedCharts.length}/{MAX_SAVED_CHARTS}</span>
                       </div>
@@ -3169,10 +3298,6 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                <button className="ghost-button compact-title-button" type="button" onClick={resetPatient}>
-                  <Icon name="reset" />
-                  Reset
-                </button>
               </div>
             )}
           </div>
@@ -3212,6 +3337,10 @@ export default function App() {
                   <button type="button" role="menuitem" onClick={() => { downloadSvg(); setShowExportMenu(false); }}>
                     Download SVG
                     <span>Best for editing</span>
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { downloadChartFile(); setShowExportMenu(false); }}>
+                    Chart data file
+                    <span>Upload later to restore this chart</span>
                   </button>
                 </div>
               )}
