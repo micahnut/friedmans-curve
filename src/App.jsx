@@ -799,7 +799,12 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
     if (observation.note.trim()) {
       const isOxytocinNote = noteMentionsOxytocin(observation.note);
       const isOxytocinStopNote = noteStopsOxytocin(observation.note);
-      const anchorsAtOrigin = observation.id === firstNoteOnlyObservation?.id && status.dilation === null && status.station === null;
+      const anchorsAtOrigin = (
+        observation.id === firstNoteOnlyObservation?.id
+        && status.dilation === null
+        && status.station === null
+        && Math.abs(status.hour) < 0.01
+      );
 
       notes.push({
         observationId: observation.id,
@@ -1556,10 +1561,26 @@ function OxytocinNoteHighlights({ highlights, grid }) {
                 opacity="0.38"
               />
             )}
-            <text x={labelX} y={grid.bottom - 36} textAnchor="middle" fontSize="9" fontWeight="900" fill="#795600">
+            <text
+              x={labelX}
+              y={grid.bottom - 36}
+              textAnchor="middle"
+              fontSize="9"
+              fontWeight="900"
+              fill="#795600"
+              data-export-oxytocin-label="true"
+            >
               {highlight.ended ? "OXYTOCIN" : "OXYTOCIN ACTIVE"}
             </text>
-            <text x={labelX} y={grid.bottom - 23} textAnchor="middle" fontSize="8" fontWeight="800" fill="#795600">
+            <text
+              x={labelX}
+              y={grid.bottom - 23}
+              textAnchor="middle"
+              fontSize="8"
+              fontWeight="800"
+              fill="#795600"
+              data-export-remove="oxytocin-detail"
+            >
               {highlight.ended ? `${highlight.startLabel} to ${highlight.endLabel}` : `from ${highlight.startLabel}; no stop note`}
             </text>
           </g>
@@ -2185,7 +2206,10 @@ function serializeSvg(chartNode, viewBoxOverride = null, options = {}) {
   const clone = chartNode.cloneNode(true);
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   clone.dataset.exportKind = options.presentationExport ? "presentation" : "full";
-  clone.querySelectorAll("[data-export-remove='legend']").forEach((node) => node.remove());
+  clone.querySelectorAll("[data-export-remove]").forEach((node) => node.remove());
+  clone.querySelectorAll("[data-export-oxytocin-label='true']").forEach((node) => {
+    node.textContent = "OXYTOCIN";
+  });
 
   if (options.photoExport) {
     prepareSvgForPhotoExport(clone);
