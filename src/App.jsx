@@ -408,11 +408,15 @@ function noteMentionsOxytocin(note = "") {
 }
 
 function noteMentionsMedication(note = "") {
-  return /\b(?:meds?|medication|ampicillin|amox(?:icillin)?|cefazolin|cefoxitin|clindamycin|gentamicin|hyoscine|pethidine|meperidine|promethazine|dinoprostone|misoprostol|oxytocin|primerose|primrose|epo|caps?|tab|tablet|iv|im|amp)\b/i.test(note);
+  return /\b(?:meds?|medication|ampicillin|amox(?:icillin)?|cefazolin|cefoxitin|clindamycin|gentamicin|hyoscine|pethidine|meperidine|promethazine|dinoprostone|misoprostol|oxytocin|primerose|primrose|epo|caps?|tab|tablet|iv|im|amp|o2|oxygen|supplementation)\b/i.test(note);
 }
 
 function noteMentionsDeliveryMilestone(note = "") {
   return /\b(?:mount|mounting|baby\s*out|placenta\s*out|delivered|delivery)\b/i.test(note);
+}
+
+function noteMentionsUrgentAction(note = "") {
+  return /\b(?:stat|stat\s+cs|cs|c\/s|cesarean|caesarean|cesarean\s+delivery|caesarean\s+delivery)\b/i.test(note);
 }
 
 function noteStopsOxytocin(note = "") {
@@ -871,6 +875,7 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
         text: observation.note.trim(),
         isMedicationNote: noteMentionsMedication(observation.note),
         isDeliveryMilestone: noteMentionsDeliveryMilestone(observation.note),
+        isUrgentAction: noteMentionsUrgentAction(observation.note),
         isOxytocinNote
       });
 
@@ -1321,10 +1326,10 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
     data.stationPoints
   );
   const noteAvoidBoxes = noteLayouts.map((note) => ({
-    x: note.x,
-    y: note.y,
-    width: note.width,
-    height: note.height
+    x: note.x - 14,
+    y: note.y - 14,
+    width: note.width + 28,
+    height: note.height + 28
   }));
   const oxytocinAvoidBoxes = data.oxytocinNoteHighlights.map((highlight) => {
     const width = Math.max(112, Math.min(170, Math.max(10, highlight.x2 - highlight.x1)));
@@ -1546,9 +1551,9 @@ function NoteLabels({ layouts, activeObservationId }) {
       : note.anchorY > note.y + note.height
         ? note.y + note.height
         : clamp(note.anchorY, note.y + 12, note.y + note.height - 12);
-    const fill = note.isDeliveryMilestone ? "#dcfce7" : note.isMedicationNote ? "#fef3c7" : "#f8f6f2";
-    const stroke = note.isDeliveryMilestone ? "#22a06b" : note.isMedicationNote ? "#d6a72c" : "#64748b";
-    const ink = note.isDeliveryMilestone ? "#0f6848" : note.isMedicationNote ? "#795600" : "#4b4034";
+    const fill = note.isUrgentAction ? "#fee2e2" : note.isDeliveryMilestone ? "#dcfce7" : note.isMedicationNote ? "#fef3c7" : "#f8f6f2";
+    const stroke = note.isUrgentAction ? "#d97878" : note.isDeliveryMilestone ? "#22a06b" : note.isMedicationNote ? "#d6a72c" : "#64748b";
+    const ink = note.isUrgentAction ? "#9f1d1d" : note.isDeliveryMilestone ? "#0f6848" : note.isMedicationNote ? "#795600" : "#4b4034";
     const isActive = activeObservationId && note.observationId === activeObservationId;
 
     return (
@@ -1769,6 +1774,10 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
       ...[-170, 170].flatMap((offset, index) => [
         { x: centeredX + offset, y: annotation.anchorY - height - 84, order: 10 + index * 2 },
         { x: centeredX + offset, y: annotation.anchorY + 84, order: 11 + index * 2 }
+      ]),
+      ...[-250, 250, -340, 340].flatMap((offset, index) => [
+        { x: centeredX + offset, y: annotation.anchorY - height - 118, order: 14 + index * 2 },
+        { x: centeredX + offset, y: annotation.anchorY + 118, order: 15 + index * 2 }
       ])
     ];
     const candidates = rawCandidates.map((candidate) => {
@@ -1795,7 +1804,9 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
         score: pointCollisions * 70000 + lineCollisions * 4500 + boxCollisions * 320000 + edgePenalty + distance * 78 + candidate.order * 12
       };
     });
-    const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
+    const nonOverlappingCandidates = candidates.filter((candidate) => candidate.boxCollisions === 0);
+    const placementPool = nonOverlappingCandidates.length ? nonOverlappingCandidates : candidates;
+    const placement = placementPool.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
     placedBoxes.push(placement);
     const connectorX = clamp(annotation.x, placement.x + 12, placement.x + boxWidth - 12);
     const connectorY = annotation.anchorY < placement.y
@@ -2312,6 +2323,10 @@ export default function App() {
   const observations = useMemo(
     () => sortedObservations(state.observations, state.patient.startTime),
     [state.observations, state.patient.startTime]
+  );
+  const annotationObservations = useMemo(
+    () => observations.filter((observation) => observation.dilation !== "" || observation.station !== ""),
+    [observations]
   );
   const annotations = state.annotations || [];
   const oxytocinEvents = state.oxytocinEvents || [];
@@ -3224,7 +3239,7 @@ export default function App() {
         Attach to observation
         <select value={newAnnotation.observationId} onChange={(event) => selectAnnotationObservation(event.target.value)}>
           <option value="">Select a plotted entry</option>
-          {observations.map((observation) => (
+          {annotationObservations.map((observation) => (
             <option key={observation.id} value={observation.id}>
               {formatDisplayTime(observation.time)} · Cervix {observation.dilation || "--"} · Station {formatStationValue(observation.station)}
             </option>
@@ -3677,7 +3692,7 @@ export default function App() {
                               Attach to observation
                               <select value={annotation.observationId} onChange={(event) => selectSavedAnnotationObservation(annotation.id, event.target.value)}>
                                 <option value="">Select a plotted entry</option>
-                                {observations.map((observation) => (
+                                {annotationObservations.map((observation) => (
                                   <option key={observation.id} value={observation.id}>
                                     {formatDisplayTime(observation.time)} · Cervix {observation.dilation || "--"} · Station {formatStationValue(observation.station)}
                                   </option>

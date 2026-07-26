@@ -1725,7 +1725,7 @@ td select {
 
 .annotation-form {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-items: end;
   padding: 14px;
@@ -1923,7 +1923,7 @@ td select {
 
 .annotation-edit-form {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   padding: 12px;
   border: 1px solid rgba(215, 220, 227, 0.9);
@@ -2438,14 +2438,6 @@ td select {
   .data-panel {
     grid-column: 1;
     grid-row: 3;
-  }
-
-  .annotation-form {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .annotation-text {
-    grid-column: 1 / span 2;
   }
 
   .oxytocin-form {
