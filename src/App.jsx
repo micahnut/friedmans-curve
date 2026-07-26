@@ -10,8 +10,8 @@ const CHART_FILE_VERSION = 1;
 const SHOW_OXYTOCIN_FEATURE = false;
 const STATION_VALUES = Array.from({ length: 11 }, (_, index) => index - 5);
 const DAY_VALUES = Array.from({ length: 8 }, (_, index) => index);
-const NOTE_LABEL_MAX_CHARS = 26;
-const NOTE_LABEL_MAX_WIDTH = 280;
+const NOTE_LABEL_MAX_CHARS = 24;
+const NOTE_LABEL_MAX_WIDTH = 248;
 const NOTE_LABEL_LANE_LIMIT = 4;
 const NOTE_LABEL_LINE_HEIGHT = 15;
 const NOTE_LABEL_GAP = 8;
@@ -82,12 +82,6 @@ function createAnnotationDraft(values = {}) {
     type: values.type || "clinical",
     text: values.text || ""
   };
-}
-
-function annotationTypeLabel(type) {
-  if (type === "clinical") return "Clinical note";
-  if (type === "outcome") return "Outcome / decision";
-  return type ? `${type[0].toUpperCase()}${type.slice(1)}` : "Clinical note";
 }
 
 function createOxytocinEvent(values = {}) {
@@ -413,6 +407,14 @@ function noteMentionsOxytocin(note = "") {
   return /\b(?:oxy|oxytocin)\b/i.test(note);
 }
 
+function noteMentionsMedication(note = "") {
+  return /\b(?:meds?|medication|ampicillin|amox(?:icillin)?|cefazolin|cefoxitin|clindamycin|gentamicin|hyoscine|pethidine|meperidine|promethazine|dinoprostone|misoprostol|oxytocin|primerose|primrose|epo|caps?|tab|tablet|iv|im|amp)\b/i.test(note);
+}
+
+function noteMentionsDeliveryMilestone(note = "") {
+  return /\b(?:mount|mounting|baby\s*out|placenta\s*out|delivered|delivery)\b/i.test(note);
+}
+
 function noteStopsOxytocin(note = "") {
   const mentionsOxytocin = noteMentionsOxytocin(note);
   const hasStopWord = /\b(?:stop|stopped|off|discontinued|dc|d\/c|held|paused)\b/i.test(note);
@@ -694,10 +696,10 @@ function clinicalSummary(observations, startTime) {
 function buildSvgData(patient, observations, annotations = [], oxytocinEvents = []) {
   const baseWidth = 1440;
   const left = 118;
-  const desiredGridHeight = 620;
-  const hourWidth = 72;
-  const maxObservationHour = Math.max(
-    18,
+  const desiredGridHeight = 600;
+  const hourWidth = 94;
+  const latestEntryHour = Math.max(
+    0,
     ...observations.map((observation) => {
       const hour = hourFromStart(observation.time, patient.startTime, observation.dayOffset);
       return hour !== null && hour >= 0 ? Math.ceil(hour) : 0;
@@ -711,7 +713,7 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
       return hour !== null && hour >= 0 ? Math.ceil(hour) : 0;
     })
   );
-  const maxHour = Math.max(18, maxObservationHour);
+  const maxHour = Math.max(12, latestEntryHour + 1);
   const width = Math.max(baseWidth, left + maxHour * hourWidth + 106);
   const horizontalGrid = {
     left,
@@ -719,7 +721,7 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
   };
   const horizontalGridWidth = horizontalGrid.right - horizontalGrid.left;
   const xForHour = (hour) => horizontalGrid.left + (clamp(hour, 0, maxHour) / maxHour) * horizontalGridWidth;
-  const top = 226;
+  const top = 204;
   const bottom = top + desiredGridHeight;
   const height = bottom + 116;
   const grid = {
@@ -739,6 +741,49 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
   const oxytocinNoteHighlights = [];
   const oxytocinNoteEvents = [];
   const sortedChartObservations = sortedObservations(observations, patient.startTime);
+  const dilationAnchorPoints = sortedChartObservations
+    .map((observation) => {
+      const status = pointStatus(observation, patient.startTime);
+      const blockingWarnings = observationBlockingWarnings(observation, patient.startTime, observations, observation.id);
+
+      if (
+        !status.validTime ||
+        !status.validDilation ||
+        !status.validStation ||
+        blockingWarnings.length > 0 ||
+        status.hour === null ||
+        status.hour < 0 ||
+        status.dilation === null
+      ) {
+        return null;
+      }
+
+      return {
+        observationId: observation.id,
+        hour: status.hour,
+        value: status.dilation,
+        x: xForHour(status.hour),
+        y: yForDilation(status.dilation)
+      };
+    })
+    .filter(Boolean);
+  const yForDilationLineAtHour = (hour) => {
+    if (!dilationAnchorPoints.length) return null;
+    if (hour <= dilationAnchorPoints[0].hour) return dilationAnchorPoints[0].y;
+
+    for (let index = 1; index < dilationAnchorPoints.length; index += 1) {
+      const previous = dilationAnchorPoints[index - 1];
+      const next = dilationAnchorPoints[index];
+
+      if (hour <= next.hour) {
+        const span = next.hour - previous.hour;
+        const ratio = span > 0 ? (hour - previous.hour) / span : 0;
+        return previous.y + (next.y - previous.y) * ratio;
+      }
+    }
+
+    return dilationAnchorPoints.at(-1).y;
+  };
   const firstNoteOnlyObservation = sortedChartObservations.find((observation) => {
     const status = pointStatus(observation, patient.startTime);
     const blockingWarnings = observationBlockingWarnings(observation, patient.startTime, observations, observation.id);
@@ -806,17 +851,26 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
         && Math.abs(status.hour) < 0.01
       );
 
+      const dilationLineY = yForDilationLineAtHour(status.hour);
+      const noteAnchorY = anchorsAtOrigin
+        ? yForDilation(0)
+        : status.dilation !== null
+          ? yForDilation(status.dilation)
+          : dilationLineY !== null
+            ? dilationLineY
+            : status.station !== null
+              ? yForStation(status.station)
+              : yForDilation(5);
+
       notes.push({
         observationId: observation.id,
         x: anchorsAtOrigin ? xForHour(0) : xForHour(status.hour),
-        anchorY: anchorsAtOrigin
-          ? yForDilation(0)
-          : status.dilation !== null
-            ? yForDilation(status.dilation)
-            : yForStation(status.station),
+        anchorY: noteAnchorY,
         hour: anchorsAtOrigin ? 0 : status.hour,
         time: formatDisplayTime(observation.time),
         text: observation.note.trim(),
+        isMedicationNote: noteMentionsMedication(observation.note),
+        isDeliveryMilestone: noteMentionsDeliveryMilestone(observation.note),
         isOxytocinNote
       });
 
@@ -838,8 +892,8 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
 
     if (hour === null || hour < 0 || !annotation.text.trim()) return;
 
-    const preferredPoints = annotation.targetSeries === "station" ? stationPoints : dilationPoints;
-    const fallbackPoints = annotation.targetSeries === "station" ? dilationPoints : stationPoints;
+    const preferredPoints = dilationPoints;
+    const fallbackPoints = stationPoints;
     const preferredPoint = preferredPoints.find((point) => point.observationId === annotation.observationId)
       || preferredPoints.find((point) => Math.abs(point.hour - hour) < 0.01);
     const fallbackPoint = fallbackPoints.find((point) => point.observationId === annotation.observationId)
@@ -1167,7 +1221,7 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
 
       return {
         ...rect,
-        score: boxCollisions * 300000 + pointCollisions * 180000 + lineCollisions * 160000 + distance * 5 + outsideGridPenalty + candidate.order * 20
+        score: boxCollisions * 320000 + pointCollisions * 90000 + lineCollisions * 9000 + distance * 58 + outsideGridPenalty + candidate.order * 18
       };
     });
     const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
@@ -1272,6 +1326,17 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
     width: note.width,
     height: note.height
   }));
+  const oxytocinAvoidBoxes = data.oxytocinNoteHighlights.map((highlight) => {
+    const width = Math.max(112, Math.min(170, Math.max(10, highlight.x2 - highlight.x1)));
+    const centerX = (highlight.x1 + highlight.x2) / 2;
+
+    return {
+      x: clamp(centerX - width / 2, grid.left + 10, grid.right - width - 10),
+      y: grid.bottom - 78,
+      width,
+      height: 64
+    };
+  });
   const noteTop = noteLayouts.length ? Math.min(...noteLayouts.map((note) => note.y)) : Infinity;
   const presentationTop = Math.max(0, Math.min(legendY - 6, grid.top - 24, noteTop - 24));
   const presentationBox = {
@@ -1321,7 +1386,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
         </marker>
       </defs>
-      <text x={width / 2} y="44" textAnchor="middle" fontSize="36" fontWeight="900" fill="#111820">
+      <text x={width / 2} y="42" textAnchor="middle" fontSize="30" fontWeight="900" fill="#111820">
         FRIEDMAN&apos;S CURVE
       </text>
 
@@ -1357,16 +1422,16 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
               y1={grid.top}
               x2={x}
               y2={grid.bottom}
-              stroke={isEdge ? "#1d2530" : "#9aa3ad"}
-              strokeWidth={isEdge ? 2.5 : 1.15}
-              opacity={isEdge ? "0.82" : "0.26"}
+              stroke={isEdge ? "#1d2530" : "#b8c0cb"}
+              strokeWidth={isEdge ? 2 : 1}
+              opacity={isEdge ? "0.74" : "0.22"}
             />
             {hour > 0 && (
-              <text x={x} y={grid.bottom + 42} textAnchor="middle" fontSize="25" fontWeight="900" fill="#111820" data-export-text="axis">
+              <text x={x} y={grid.bottom + 39} textAnchor="middle" fontSize="22" fontWeight="900" fill="#111820" data-export-text="axis">
                 {hour}
               </text>
             )}
-            <text x={x} y={grid.bottom + 19} textAnchor="middle" fontSize="13" fontWeight="800" fill="#4f5865" data-export-hide="true">
+            <text x={x} y={grid.bottom + 18} textAnchor="middle" fontSize="12" fontWeight="800" fill="#667085" data-export-hide="true">
               {data.timeFromHour(hour)}
             </text>
           </g>
@@ -1385,27 +1450,27 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
               y1={y}
               x2={grid.right}
               y2={y}
-              stroke={isEdge ? "#1d2530" : "#9aa3ad"}
-              strokeWidth={isEdge ? 2.5 : 1.15}
-              opacity={isEdge ? "0.82" : "0.26"}
+              stroke={isEdge ? "#1d2530" : "#b8c0cb"}
+              strokeWidth={isEdge ? 2 : 1}
+              opacity={isEdge ? "0.74" : "0.22"}
             />
-            <text x={grid.left - 22} y={y + 8} textAnchor="end" fontSize="25" fontWeight="900" fill="#111820" data-export-text="axis">
+            <text x={grid.left - 20} y={y + 7} textAnchor="end" fontSize="22" fontWeight="900" fill="#111820" data-export-text="axis">
               {dilation}
             </text>
-            <text x={grid.right + 24} y={y + 8} textAnchor="start" fontSize="25" fontWeight="900" fill="#111820" data-export-text="axis">
+            <text x={grid.right + 22} y={y + 7} textAnchor="start" fontSize="22" fontWeight="900" fill="#111820" data-export-text="axis">
               {station}
             </text>
           </g>
         );
       })}
 
-      <text x="41" y={gridCenterY} fontSize="22" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(-90 41 ${gridCenterY})`} data-export-text="axis-title">
+      <text x="42" y={gridCenterY} fontSize="20" fontWeight="900" fill="#0f63ce" textAnchor="middle" transform={`rotate(-90 42 ${gridCenterY})`} data-export-text="axis-title">
         CERVICAL DILATATION (CM)
       </text>
-      <text x={stationLabelX} y={gridCenterY} fontSize="22" fontWeight="900" fill="#111820" textAnchor="middle" transform={`rotate(90 ${stationLabelX} ${gridCenterY})`} data-export-text="axis-title">
+      <text x={stationLabelX} y={gridCenterY} fontSize="20" fontWeight="900" fill="#c62828" textAnchor="middle" transform={`rotate(90 ${stationLabelX} ${gridCenterY})`} data-export-text="axis-title">
         STATION
       </text>
-      <text x={(grid.left + grid.right) / 2} y={timeLabelY} textAnchor="middle" fontSize="22" fontWeight="900" fill="#111820" data-export-text="axis-title">
+      <text x={(grid.left + grid.right) / 2} y={timeLabelY} textAnchor="middle" fontSize="20" fontWeight="900" fill="#111820" data-export-text="axis-title">
         TIME (HOURS)
       </text>
       {data.guideLines.map((line) => (
@@ -1416,10 +1481,10 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
           x2={line.x}
           y2={grid.bottom}
           stroke="#1f2933"
-          strokeWidth="1.8"
-          strokeDasharray="4 7"
+          strokeWidth="1.35"
+          strokeDasharray="3 8"
           strokeLinecap="round"
-          opacity="0.46"
+          opacity="0.36"
         />
       ))}
       {SHOW_OXYTOCIN_FEATURE && <OxytocinTrack bands={data.oxytocinBands} changes={data.oxytocinChanges} grid={grid} />}
@@ -1441,7 +1506,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
         onPointLeave={() => setHoveredPoint(null)}
       />
       <NoteLabels layouts={noteLayouts} activeObservationId={activeObservationId} />
-      <ChartAnnotationLabels annotations={data.annotations} grid={grid} dilationPoints={data.dilationPoints} stationPoints={data.stationPoints} avoidBoxes={noteAvoidBoxes} activeAnnotationId={activeAnnotationId} />
+      <ChartAnnotationLabels annotations={data.annotations} grid={grid} dilationPoints={data.dilationPoints} stationPoints={data.stationPoints} avoidBoxes={[...noteAvoidBoxes, ...oxytocinAvoidBoxes]} activeAnnotationId={activeAnnotationId} />
 
       {hasFooter && (
         <>
@@ -1481,9 +1546,9 @@ function NoteLabels({ layouts, activeObservationId }) {
       : note.anchorY > note.y + note.height
         ? note.y + note.height
         : clamp(note.anchorY, note.y + 12, note.y + note.height - 12);
-    const fill = "#f8f6f2";
-    const stroke = "#475569";
-    const ink = "#4b4034";
+    const fill = note.isDeliveryMilestone ? "#dcfce7" : note.isMedicationNote ? "#fef3c7" : "#f8f6f2";
+    const stroke = note.isDeliveryMilestone ? "#22a06b" : note.isMedicationNote ? "#d6a72c" : "#64748b";
+    const ink = note.isDeliveryMilestone ? "#0f6848" : note.isMedicationNote ? "#795600" : "#4b4034";
     const isActive = activeObservationId && note.observationId === activeObservationId;
 
     return (
@@ -1494,13 +1559,13 @@ function NoteLabels({ layouts, activeObservationId }) {
           x2={boxConnectorX}
           y2={boxConnectorY}
           stroke={stroke}
-          strokeWidth={isActive ? "2.8" : "1.55"}
+          strokeWidth={isActive ? "2.5" : "1.15"}
           strokeLinecap="round"
-          opacity="0.78"
+          opacity="0.62"
         />
-        <circle cx={note.anchorX} cy={note.anchorY} r="3.6" fill="#ffffff" stroke={stroke} strokeWidth="1.5" opacity="0.95" />
-        <rect x={note.x} y={note.y} width={note.width} height={note.height} rx="5" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.4" : "1.1"} opacity="0.99" data-export-box="note" />
-        <text x={note.x + note.width / 2} y={note.y + 18} textAnchor="middle" fontSize="13" fontWeight="900" fill={ink} data-export-text="note">
+        <circle cx={note.anchorX} cy={note.anchorY} r="3.2" fill="#ffffff" stroke={stroke} strokeWidth="1.25" opacity="0.9" />
+        <rect x={note.x} y={note.y} width={note.width} height={note.height} rx="4" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.1" : "0.9"} opacity="0.97" data-export-box="note" />
+        <text x={note.x + note.width / 2} y={note.y + 18} textAnchor="middle" fontSize="12.5" fontWeight="900" fill={ink} data-export-text="note">
           {note.labelLines.map((line, index) => (
             <tspan key={`${line}-${index}`} x={note.x + note.width / 2} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
               {line}
@@ -1645,13 +1710,8 @@ function OxytocinTrack({ bands, changes, grid }) {
 }
 
 function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoints, avoidBoxes = [], activeAnnotationId }) {
-  const styles = {
-    clinical: { fill: "#fce7f3", stroke: "#db8fba", label: "Clinical note" },
-    medication: { fill: "#fef3c7", stroke: "#d6a72c", label: "Medication" },
-    intervention: { fill: "#dbeafe", stroke: "#6aa4dc", label: "Intervention" },
-    outcome: { fill: "#fee2e2", stroke: "#d97878", label: "Outcome" }
-  };
-  const boxWidth = 250;
+  const style = { fill: "#fce7f3", stroke: "#db8fba" };
+  const boxWidth = 232;
   const lineHeight = 16;
   const plottedPoints = [...dilationPoints, ...stationPoints];
   const plottedSegments = [dilationPoints, stationPoints].flatMap((points) =>
@@ -1685,25 +1745,10 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
     first.y < second.y + second.height + padding &&
     first.y + first.height + padding > second.y;
 
-  const makeEdgeCandidates = (height, orderStart = 0) => {
-    const slots = [
-      [grid.left + gridPadding, grid.top + gridPadding],
-      [grid.right - boxWidth - gridPadding, grid.top + gridPadding],
-      [grid.left + gridPadding, grid.bottom - height - gridPadding],
-      [grid.right - boxWidth - gridPadding, grid.bottom - height - gridPadding],
-      [(grid.left + grid.right - boxWidth) / 2, grid.top + gridPadding],
-      [(grid.left + grid.right - boxWidth) / 2, grid.bottom - height - gridPadding]
-    ];
-
-    return slots.map(([x, y], index) => ({ x, y, order: orderStart + index }));
-  };
-
   return annotations.slice(0, 12).map((annotation) => {
-    const style = styles[annotation.type] || styles.clinical;
     const isActive = activeAnnotationId && annotation.id === activeAnnotationId;
-    const targetLabel = annotation.targetSeries === "station" ? "station" : "cervix";
-    const title = `${annotation.time} · ${style.label} · ${targetLabel}`;
-    const bodyLines = wrapText(annotation.text, 28);
+    const title = annotation.time;
+    const bodyLines = wrapText(annotation.text, 26);
     const height = 39 + bodyLines.length * lineHeight + 14;
     const gapX = 28;
     const gapY = 24;
@@ -1715,17 +1760,16 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
       { x: leftX, y: annotation.anchorY - height - gapY, order: 1 },
       { x: rightX, y: annotation.anchorY + gapY, order: 2 },
       { x: leftX, y: annotation.anchorY + gapY, order: 3 },
-      { x: centeredX, y: annotation.anchorY - height - 58, order: 4 },
-      { x: centeredX, y: annotation.anchorY + 58, order: 5 },
+      { x: centeredX, y: annotation.anchorY - height - 42, order: 4 },
+      { x: centeredX, y: annotation.anchorY + 42, order: 5 },
+      ...[-120, 120].flatMap((offset, index) => [
+        { x: centeredX + offset, y: annotation.anchorY - height - 54, order: 6 + index * 2 },
+        { x: centeredX + offset, y: annotation.anchorY + 54, order: 7 + index * 2 }
+      ]),
       ...[-170, 170].flatMap((offset, index) => [
-        { x: centeredX + offset, y: annotation.anchorY - height - 70, order: 6 + index * 2 },
-        { x: centeredX + offset, y: annotation.anchorY + 70, order: 7 + index * 2 }
-      ]),
-      ...[-230, 230, -310, 310].flatMap((offset, index) => [
-        { x: centeredX + offset, y: annotation.anchorY - height - 118, order: 10 + index * 2 },
-        { x: centeredX + offset, y: annotation.anchorY + 118, order: 11 + index * 2 }
-      ]),
-      ...makeEdgeCandidates(height, 18)
+        { x: centeredX + offset, y: annotation.anchorY - height - 84, order: 10 + index * 2 },
+        { x: centeredX + offset, y: annotation.anchorY + 84, order: 11 + index * 2 }
+      ])
     ];
     const candidates = rawCandidates.map((candidate) => {
       const rect = {
@@ -1748,7 +1792,7 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
 
       return {
         ...rect,
-        score: pointCollisions * 180000 + lineCollisions * 160000 + boxCollisions * 52000 + edgePenalty + distance * 4 + candidate.order * 8
+        score: pointCollisions * 70000 + lineCollisions * 4500 + boxCollisions * 320000 + edgePenalty + distance * 78 + candidate.order * 12
       };
     });
     const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
@@ -1768,14 +1812,15 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
           x2={annotation.x}
           y2={annotation.anchorY}
           stroke={style.stroke}
-          strokeWidth={isActive ? "3" : "1.5"}
+          strokeWidth={isActive ? "2.6" : "1.2"}
+          opacity="0.72"
           markerEnd="url(#annotation-arrow)"
         />
-        <rect x={placement.x} y={placement.y} width={boxWidth} height={height} rx="5" fill={style.fill} stroke={style.stroke} strokeWidth={isActive ? "2.8" : "1.3"} opacity="0.96" data-export-box="annotation" />
-        <text x={placement.x + boxWidth / 2} y={placement.y + 21} textAnchor="middle" fontSize="13" fontWeight="900" fill="#28313d" data-export-text="annotation-title">
+        <rect x={placement.x} y={placement.y} width={boxWidth} height={height} rx="4" fill={style.fill} stroke={style.stroke} strokeWidth={isActive ? "2.4" : "1.05"} opacity="0.93" data-export-box="annotation" />
+        <text x={placement.x + boxWidth / 2} y={placement.y + 21} textAnchor="middle" fontSize="12.5" fontWeight="900" fill="#28313d" data-export-text="annotation-title">
           {title}
         </text>
-        <text x={placement.x + boxWidth / 2} y={placement.y + 42} textAnchor="middle" fontSize="13" fontWeight="800" fill="#3e4650" data-export-text="annotation-body">
+        <text x={placement.x + boxWidth / 2} y={placement.y + 42} textAnchor="middle" fontSize="12.5" fontWeight="800" fill="#3e4650" data-export-text="annotation-body">
           {bodyLines.map((line, lineIndex) => (
             <tspan key={`${line}-${lineIndex}`} x={placement.x + boxWidth / 2} dy={lineIndex === 0 ? 0 : lineHeight}>
               {line}
@@ -2087,9 +2132,9 @@ function GuidePage() {
             <ul>
               <li>Select the exact recorded observation.</li>
               <li>Choose whether the callout connects to the cervix or station point.</li>
-              <li>Choose a type: clinical note, medication, intervention, or outcome.</li>
+              <li>Annotations attach automatically to the cervical dilation point for the selected observation.</li>
               <li>Annotations can be edited or deleted after adding.</li>
-              <li>Annotations use connector lines and try to stay clear of the plotted graph and note callouts.</li>
+              <li>Annotations use connector lines and stay near the selected point while avoiding nearby note callouts.</li>
             </ul>
           </article>
 
@@ -2313,8 +2358,6 @@ export default function App() {
     ? [
         ["Time", formatDisplayTime(confirmationAnnotationObservation?.time || confirmationAnnotation.time)],
         ["Day", normalizedDay(confirmationAnnotationObservation?.dayOffset ?? confirmationAnnotation.dayOffset)],
-        ["Type", annotationTypeLabel(confirmationAnnotation.type)],
-        ["Connected to", confirmationAnnotation.targetSeries === "station" ? "Station" : "Cervix"],
         ["Annotation", confirmationAnnotation.text.trim() || "--"]
       ]
     : [];
@@ -2566,7 +2609,7 @@ export default function App() {
       observationId,
       time: observation.time,
       dayOffset: normalizedDay(observation.dayOffset),
-      targetSeries: observation.dilation !== "" ? "dilation" : "station"
+      targetSeries: "dilation"
     }));
   };
 
@@ -2587,7 +2630,7 @@ export default function App() {
           observationId,
           time: observation.time,
           dayOffset: normalizedDay(observation.dayOffset),
-          targetSeries: observation.dilation !== "" ? "dilation" : "station"
+          targetSeries: "dilation"
         };
       })
     }));
@@ -2598,16 +2641,14 @@ export default function App() {
 
     setState((current) => ({
       ...current,
-      annotations: [...(current.annotations || []), createChartAnnotation(newAnnotation)]
+      annotations: [...(current.annotations || []), createChartAnnotation({ ...newAnnotation, type: "clinical" })]
     }));
-    setNewAnnotation(createAnnotationDraft({
-      type: newAnnotation.type
-    }));
+    setNewAnnotation(createAnnotationDraft({ time: state.patient.startTime }));
     notify("Annotation added.");
   };
 
   const resetNewAnnotation = () => {
-    setNewAnnotation(createAnnotationDraft({ type: newAnnotation.type, time: state.patient.startTime }));
+    setNewAnnotation(createAnnotationDraft({ time: state.patient.startTime }));
   };
 
   const toggleObservationEditor = (id, isExpanded) => {
@@ -3185,25 +3226,9 @@ export default function App() {
           <option value="">Select a plotted entry</option>
           {observations.map((observation) => (
             <option key={observation.id} value={observation.id}>
-              {formatDisplayTime(observation.time)} · Day {normalizedDay(observation.dayOffset)} · Cervix {observation.dilation || "--"} · Station {formatStationValue(observation.station)}
+              {formatDisplayTime(observation.time)} · Cervix {observation.dilation || "--"} · Station {formatStationValue(observation.station)}
             </option>
           ))}
-        </select>
-      </label>
-      <label>
-        Connect to
-        <select value={newAnnotation.targetSeries} onChange={(event) => updateNewAnnotation("targetSeries", event.target.value)}>
-          <option value="dilation">Cervical dilation point</option>
-          <option value="station">Station point</option>
-        </select>
-      </label>
-      <label>
-        Type
-        <select value={newAnnotation.type} onChange={(event) => updateNewAnnotation("type", event.target.value)}>
-          <option value="clinical">Clinical note</option>
-          <option value="medication">Medication</option>
-          <option value="intervention">Intervention</option>
-          <option value="outcome">Outcome / decision</option>
         </select>
       </label>
       <label className="annotation-text">
@@ -3638,12 +3663,12 @@ export default function App() {
                   const isEditing = editingAnnotationId === annotation.id;
 
                   return (
-                    <article className={`annotation-item ${annotation.type}${isEditing ? " editing" : ""}`} key={annotation.id}>
+                    <article className={`annotation-item clinical${isEditing ? " editing" : ""}`} key={annotation.id}>
                       <div className="annotation-item-body">
                         <div>
                           <strong>{formatDisplayTime(displayTime)} · Day {normalizedDay(displayDay)}</strong>
                           {isEditing && <em>Editing</em>}
-                          <span>{annotationTypeLabel(annotation.type)} · {annotation.targetSeries === "station" ? "Station" : "Cervix"}</span>
+                          <span>Clinical note</span>
                           <p>{annotation.text}</p>
                         </div>
                         {isEditing && (
@@ -3654,25 +3679,9 @@ export default function App() {
                                 <option value="">Select a plotted entry</option>
                                 {observations.map((observation) => (
                                   <option key={observation.id} value={observation.id}>
-                                    {formatDisplayTime(observation.time)} · Day {normalizedDay(observation.dayOffset)} · Cervix {observation.dilation || "--"} · Station {formatStationValue(observation.station)}
+                                    {formatDisplayTime(observation.time)} · Cervix {observation.dilation || "--"} · Station {formatStationValue(observation.station)}
                                   </option>
                                 ))}
-                              </select>
-                            </label>
-                            <label>
-                              Connect to
-                              <select value={annotation.targetSeries} onChange={(event) => updateAnnotation(annotation.id, "targetSeries", event.target.value)}>
-                                <option value="dilation">Cervical dilation point</option>
-                                <option value="station">Station point</option>
-                              </select>
-                            </label>
-                            <label>
-                              Type
-                              <select value={annotation.type} onChange={(event) => updateAnnotation(annotation.id, "type", event.target.value)}>
-                                <option value="clinical">Clinical note</option>
-                                <option value="medication">Medication</option>
-                                <option value="intervention">Intervention</option>
-                                <option value="outcome">Outcome / decision</option>
                               </select>
                             </label>
                             <label className="annotation-edit-text">
