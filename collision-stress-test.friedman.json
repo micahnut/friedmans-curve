@@ -1,0 +1,248 @@
+{
+  "type": "friedmans-curve-chart",
+  "version": 1,
+  "label": "Collision Stress Test - Dense Labels",
+  "exportedAt": "2026-07-27T00:00:00.000Z",
+  "state": {
+    "patient": {
+      "patientName": "Collision Stress Test",
+      "patientAge": "25",
+      "patientObScore": "G1P0",
+      "patientAog": "39 5/7 weeks",
+      "patientDate": "2026-07-27",
+      "startTime": "07:00",
+      "finalDiagnosis": "Dense test record for checking Friedman curve label placement, note colors, annotation spacing, and export collisions.",
+      "residentName": "Test"
+    },
+    "observations": [
+      {
+        "id": "obs-0700",
+        "time": "07:00",
+        "dayOffset": "0",
+        "dilation": "2",
+        "station": "-3",
+        "guideLine": true,
+        "note": "Admission; IE: ruptured, clear"
+      },
+      {
+        "id": "obs-0745-note",
+        "time": "07:45",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "O2 supplementation started"
+      },
+      {
+        "id": "obs-0815",
+        "time": "08:15",
+        "dayOffset": "0",
+        "dilation": "3",
+        "station": "-3",
+        "guideLine": false,
+        "note": ""
+      },
+      {
+        "id": "obs-0830-note",
+        "time": "08:30",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "Given Hyoscine"
+      },
+      {
+        "id": "obs-0900-note",
+        "time": "09:00",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "Given Ampicillin 2g IV"
+      },
+      {
+        "id": "obs-0930",
+        "time": "09:30",
+        "dayOffset": "0",
+        "dilation": "4",
+        "station": "-3",
+        "guideLine": false,
+        "note": ""
+      },
+      {
+        "id": "obs-0945-note",
+        "time": "09:45",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "Given HNBB 1 amp"
+      },
+      {
+        "id": "obs-1015-note",
+        "time": "10:15",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "O2 continued, left lateral"
+      },
+      {
+        "id": "obs-1030",
+        "time": "10:30",
+        "dayOffset": "0",
+        "dilation": "5",
+        "station": "-2",
+        "guideLine": false,
+        "note": ""
+      },
+      {
+        "id": "obs-1100-note",
+        "time": "11:00",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "Given pethidine + promethazine"
+      },
+      {
+        "id": "obs-1115-note",
+        "time": "11:15",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "STAT CS called"
+      },
+      {
+        "id": "obs-1130",
+        "time": "11:30",
+        "dayOffset": "0",
+        "dilation": "6",
+        "station": "-2",
+        "guideLine": false,
+        "note": ""
+      },
+      {
+        "id": "obs-1145-note",
+        "time": "11:45",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "STAT cesarean delivery due to NRFHRP"
+      },
+      {
+        "id": "obs-1200",
+        "time": "12:00",
+        "dayOffset": "0",
+        "dilation": "7",
+        "station": "-1",
+        "guideLine": false,
+        "note": ""
+      },
+      {
+        "id": "obs-1215-note",
+        "time": "12:15",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "Given EPO 4 caps"
+      },
+      {
+        "id": "obs-1230",
+        "time": "12:30",
+        "dayOffset": "0",
+        "dilation": "8",
+        "station": "0",
+        "guideLine": false,
+        "note": ""
+      },
+      {
+        "id": "obs-1240-note",
+        "time": "12:40",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "Mount"
+      },
+      {
+        "id": "obs-1250-note",
+        "time": "12:50",
+        "dayOffset": "0",
+        "dilation": "",
+        "station": "",
+        "guideLine": true,
+        "note": "Baby out"
+      },
+      {
+        "id": "obs-1300",
+        "time": "13:00",
+        "dayOffset": "0",
+        "dilation": "10",
+        "station": "3",
+        "guideLine": true,
+        "note": "Placenta out"
+      }
+    ],
+    "annotations": [
+      {
+        "id": "ann-0815-fhr",
+        "observationId": "obs-0815",
+        "time": "08:15",
+        "dayOffset": "0",
+        "targetSeries": "dilation",
+        "type": "clinical",
+        "text": "FIGO normal: baseline FHT 140s, moderate variability, accelerations present, no decelerations, contractions every 5-6 mins."
+      },
+      {
+        "id": "ann-0930-fhr",
+        "observationId": "obs-0930",
+        "time": "09:30",
+        "dayOffset": "0",
+        "targetSeries": "dilation",
+        "type": "clinical",
+        "text": "FIGO suspicious: baseline FHT 130s, normal variability with repetitive variable decelerations to 90 bpm."
+      },
+      {
+        "id": "ann-1030-fhr",
+        "observationId": "obs-1030",
+        "time": "10:30",
+        "dayOffset": "0",
+        "targetSeries": "dilation",
+        "type": "clinical",
+        "text": "Contractions every 3-4 mins, strong intensity, MVU 280. Continue close monitoring and maternal repositioning."
+      },
+      {
+        "id": "ann-1130-fhr",
+        "observationId": "obs-1130",
+        "time": "11:30",
+        "dayOffset": "0",
+        "targetSeries": "dilation",
+        "type": "clinical",
+        "text": "Recurrent variable decelerations persisted despite O2 supplementation and position change."
+      },
+      {
+        "id": "ann-1200-fhr",
+        "observationId": "obs-1200",
+        "time": "12:00",
+        "dayOffset": "0",
+        "targetSeries": "dilation",
+        "type": "clinical",
+        "text": "Prepare for expedited delivery; team informed and consent reviewed."
+      },
+      {
+        "id": "ann-1230-fhr",
+        "observationId": "obs-1230",
+        "time": "12:30",
+        "dayOffset": "0",
+        "targetSeries": "dilation",
+        "type": "clinical",
+        "text": "Complete dilation with rapid descent. Continue continuous fetal monitoring."
+      }
+    ],
+    "oxytocinEvents": []
+  }
+}

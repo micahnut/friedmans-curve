@@ -10,11 +10,11 @@ const CHART_FILE_VERSION = 1;
 const SHOW_OXYTOCIN_FEATURE = false;
 const STATION_VALUES = Array.from({ length: 11 }, (_, index) => index - 5);
 const DAY_VALUES = Array.from({ length: 8 }, (_, index) => index);
-const NOTE_LABEL_MAX_CHARS = 24;
-const NOTE_LABEL_MAX_WIDTH = 248;
+const NOTE_LABEL_MAX_CHARS = 28;
+const NOTE_LABEL_MAX_WIDTH = 312;
 const NOTE_LABEL_LANE_LIMIT = 4;
-const NOTE_LABEL_LINE_HEIGHT = 15;
-const NOTE_LABEL_GAP = 8;
+const NOTE_LABEL_LINE_HEIGHT = 18;
+const NOTE_LABEL_GAP = 10;
 const PATIENT_FIELDS = [
   "patientName",
   "patientAge",
@@ -700,7 +700,7 @@ function clinicalSummary(observations, startTime) {
 function buildSvgData(patient, observations, annotations = [], oxytocinEvents = []) {
   const baseWidth = 1440;
   const left = 118;
-  const desiredGridHeight = 600;
+  const baseGridHeight = 600;
   const hourWidth = 94;
   const latestEntryHour = Math.max(
     0,
@@ -717,22 +717,37 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
       return hour !== null && hour >= 0 ? Math.ceil(hour) : 0;
     })
   );
-  const maxHour = Math.max(12, latestEntryHour + 1);
-  const width = Math.max(baseWidth, left + maxHour * hourWidth + 106);
+  const visibleNoteCount = observations.filter((observation) => observation.note?.trim() && !noteMentionsOxytocin(observation.note)).length;
+  const labelDensity = visibleNoteCount + annotations.length * 2;
+  const maxAnnotationLines = Math.max(0, ...annotations.map((annotation) => wrapText(annotation.text, 28).length));
+  const totalAnnotationLines = annotations.reduce((total, annotation) => total + wrapText(annotation.text, 28).length, 0);
+  const requestedRightHourPadding = labelDensity >= 22 ? 16 : labelDensity >= 16 ? 13 : labelDensity >= 10 ? 8 : 4;
+  const proportionalRightHourPadding = Math.max(3, Math.ceil(latestEntryHour * 0.75));
+  const rightHourPadding = Math.min(requestedRightHourPadding, proportionalRightHourPadding);
+  const textHeightPressure = Math.max(0, maxAnnotationLines - 4) * 34 + Math.max(0, totalAnnotationLines - annotations.length * 3) * 4;
+  const cellHeight = labelDensity >= 22 ? 112 : labelDensity >= 16 ? 104 : labelDensity >= 8 ? 92 : labelDensity >= 4 ? 82 : 60;
+  const topLabelRoom = 0;
+  const desiredGridHeight = Math.max(baseGridHeight, cellHeight * 10 + textHeightPressure);
+  const maxHour = Math.max(10, latestEntryHour + rightHourPadding);
+  const dynamicHourWidth = labelDensity >= 22 ? 136 : labelDensity >= 16 ? 126 : labelDensity >= 8 ? 114 : hourWidth;
+  const width = Math.max(baseWidth, left + maxHour * dynamicHourWidth + 106);
   const horizontalGrid = {
     left,
     right: width - 106
   };
   const horizontalGridWidth = horizontalGrid.right - horizontalGrid.left;
   const xForHour = (hour) => horizontalGrid.left + (clamp(hour, 0, maxHour) / maxHour) * horizontalGridWidth;
-  const top = 204;
+  const frameTop = 204;
+  const top = frameTop + topLabelRoom;
   const bottom = top + desiredGridHeight;
   const height = bottom + 116;
   const grid = {
     left,
+    frameTop,
     top,
     right: horizontalGrid.right,
-    bottom
+    bottom,
+    labelTop: frameTop
   };
   const gridHeight = grid.bottom - grid.top;
   const yForDilation = (dilation) => grid.bottom - (clamp(dilation, 0, 10) / 10) * gridHeight;
@@ -909,6 +924,7 @@ function buildSvgData(patient, observations, annotations = [], oxytocinEvents = 
       id: annotation.id,
       x: anchorPoint?.x ?? xForHour(hour),
       anchorY: anchorPoint?.y ?? grid.top + gridHeight * (0.42 + (index % 2) * 0.18),
+      hour,
       time: formatDisplayTime(annotationTime),
       targetSeries: annotation.targetSeries || "dilation",
       type: annotation.type || "clinical",
@@ -1083,15 +1099,15 @@ function wrapText(value, maxChars) {
 }
 
 function prepareNoteLabels(notes) {
-  const charWidth = 8.4;
+  const charWidth = 9.4;
 
   return notes.slice(0, 16).map((note) => {
     const labelLines = wrapText(`${note.time} · ${note.text}`, NOTE_LABEL_MAX_CHARS);
 
     return {
       ...note,
-      width: Math.min(NOTE_LABEL_MAX_WIDTH, Math.max(132, Math.max(...labelLines.map((line) => line.length)) * charWidth + 26)),
-      height: labelLines.length * NOTE_LABEL_LINE_HEIGHT + 20,
+      width: Math.min(NOTE_LABEL_MAX_WIDTH, Math.max(156, Math.max(...labelLines.map((line) => line.length)) * charWidth + 30)),
+      height: labelLines.length * NOTE_LABEL_LINE_HEIGHT + 24,
       labelLines
     };
   });
@@ -1135,13 +1151,14 @@ function positionNoteLabels(preparedNotes, grid) {
 }
 
 function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoints) {
+  const labelTop = grid.labelTop ?? grid.frameTop ?? grid.top;
   const plottedPoints = [...dilationPoints, ...stationPoints];
   const plottedSegments = [dilationPoints, stationPoints].flatMap((points) =>
     points.slice(1).map((point, index) => [points[index], point])
   );
   const placedBoxes = [];
   const padding = 10;
-  const minY = grid.top - 82;
+  const minY = labelTop;
   const maxY = grid.bottom + 10;
   const pointInsideRect = (point, rect, extra = 6) =>
     point.x >= rect.x - extra && point.x <= rect.x + rect.width + extra &&
@@ -1168,19 +1185,25 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
     first.x + first.width + extra > second.x &&
     first.y < second.y + second.height + extra &&
     first.y + first.height + extra > second.y;
+  const reserveRect = (rect, extra = 18) => ({
+    x: rect.x - extra,
+    y: rect.y - extra,
+    width: rect.width + extra * 2,
+    height: rect.height + extra * 2
+  });
 
   return preparedNotes.map((note) => {
     const centeredX = note.x - note.width / 2;
     const rightX = note.x + 22;
     const leftX = note.x - note.width - 22;
-    const aboveGridY = grid.top - note.height - 10;
+    const aboveGridY = labelTop + 10;
     const belowGridY = grid.bottom + 10;
     const insideSlotCandidates = [0.16, 0.32, 0.48, 0.64, 0.8]
       .flatMap((xRatio, xIndex) => {
         const slotX = grid.left + (grid.right - grid.left) * xRatio - note.width / 2;
         return [0.1, 0.24, 0.39, 0.55, 0.71, 0.86].map((yRatio, yIndex) => ({
           x: slotX,
-          y: grid.top + (grid.bottom - grid.top - note.height) * yRatio,
+          y: labelTop + (grid.bottom - labelTop - note.height) * yRatio,
           order: 18 + xIndex * 6 + yIndex
         }));
       });
@@ -1222,16 +1245,28 @@ function positionChartNoteLabels(preparedNotes, grid, dilationPoints, stationPoi
       const lineCollisions = plottedSegments.filter((segment) => lineIntersectsRect(segment, rect)).length;
       const boxCollisions = placedBoxes.filter((box) => boxesOverlap(rect, box)).length;
       const distance = Math.hypot(rect.x + rect.width / 2 - note.x, rect.y + rect.height / 2 - note.anchorY);
-      const outsideGridPenalty = rect.y < grid.top || rect.y + rect.height > grid.bottom ? 260000 : 0;
+      const outsideGridPenalty = rect.y < labelTop || rect.y + rect.height > grid.bottom ? 260000 : 0;
 
       return {
         ...rect,
-        score: boxCollisions * 320000 + pointCollisions * 90000 + lineCollisions * 9000 + distance * 58 + outsideGridPenalty + candidate.order * 18
+        boxCollisions,
+        graphCollisions: pointCollisions + lineCollisions,
+        score: boxCollisions * 320000 + pointCollisions * 900000 + lineCollisions * 650000 + distance * 58 + outsideGridPenalty + candidate.order * 18
       };
     });
-    const placement = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
+    const graphClearCandidates = candidates.filter((candidate) => candidate.graphCollisions === 0);
+    const cleanCandidates = graphClearCandidates.filter((candidate) => candidate.boxCollisions === 0);
+    const nonOverlappingCandidates = candidates.filter((candidate) => candidate.boxCollisions === 0);
+    const placementPool = cleanCandidates.length
+      ? cleanCandidates
+      : graphClearCandidates.length
+        ? graphClearCandidates
+        : nonOverlappingCandidates.length
+          ? nonOverlappingCandidates
+          : candidates;
+    const placement = placementPool.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
 
-    placedBoxes.push(placement);
+    placedBoxes.push(reserveRect(placement));
     return placement;
   });
 }
@@ -1311,14 +1346,14 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
   const diagnosisText = patient.finalDiagnosis ? `Final Diagnosis: ${patient.finalDiagnosis}` : "Final Diagnosis:";
   const diagnosisLines = wrapText(diagnosisText, patient.residentName ? 102 : 132);
   const hasFooter = Boolean(patient.finalDiagnosis || patient.residentName);
-  const gridCenterY = (grid.top + grid.bottom) / 2;
+  const frameTop = grid.frameTop ?? grid.top;
+  const gridCenterY = (frameTop + grid.bottom) / 2;
   const stationLabelX = grid.right + 66;
   const legendY = 152 + (maxHeaderLines - 1) * headerLineHeight;
   const timeLabelY = grid.bottom + 74;
   const diagnosisY = grid.bottom + 98;
   const diagnosisLineHeight = 20;
   const residentY = diagnosisY + Math.max(diagnosisLines.length, 1) * diagnosisLineHeight + 2;
-  const height = hasFooter ? Math.max(data.height, residentY + 24) : data.height;
   const noteLayouts = positionChartNoteLabels(
     prepareNoteLabels(data.notes.filter((note) => !note.isOxytocinNote)),
     grid,
@@ -1326,10 +1361,10 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
     data.stationPoints
   );
   const noteAvoidBoxes = noteLayouts.map((note) => ({
-    x: note.x - 14,
-    y: note.y - 14,
-    width: note.width + 28,
-    height: note.height + 28
+    x: note.x - 26,
+    y: note.y - 26,
+    width: note.width + 52,
+    height: note.height + 52
   }));
   const oxytocinAvoidBoxes = data.oxytocinNoteHighlights.map((highlight) => {
     const width = Math.max(112, Math.min(170, Math.max(10, highlight.x2 - highlight.x1)));
@@ -1342,13 +1377,15 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
       height: 64
     };
   });
+  const height = hasFooter ? Math.max(data.height, residentY + 24) : data.height;
   const noteTop = noteLayouts.length ? Math.min(...noteLayouts.map((note) => note.y)) : Infinity;
-  const presentationTop = Math.max(0, Math.min(legendY - 6, grid.top - 24, noteTop - 24));
+  const presentationTop = Math.max(0, Math.min(legendY - 6, frameTop - 24, noteTop - 24));
+  const presentationBottom = grid.bottom + 78;
   const presentationBox = {
     x: Math.max(0, grid.left - 92),
     y: presentationTop,
     width: Math.min(width, grid.right + 92) - Math.max(0, grid.left - 92),
-    height: Math.min(height, grid.bottom + 78) - presentationTop
+    height: Math.min(height, presentationBottom) - presentationTop
   };
   const showPointDetails = (point, series) => {
     const bounds = activeChartRef.current?.getBoundingClientRect();
@@ -1377,7 +1414,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
         data-presentation-y={presentationBox.y}
         data-presentation-width={presentationBox.width}
         data-presentation-height={presentationBox.height}
-        data-presentation-grid-top={grid.top}
+        data-presentation-grid-top={frameTop}
         data-presentation-grid-bottom={grid.bottom}
         xmlns="http://www.w3.org/2000/svg"
         style={{ aspectRatio: `${width} / ${height}` }}
@@ -1416,6 +1453,18 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
       <OxytocinNoteHighlights highlights={data.oxytocinNoteHighlights} grid={grid} />
       {SHOW_OXYTOCIN_FEATURE && <OxytocinBands bands={data.oxytocinBands} grid={grid} />}
 
+      {frameTop < grid.top && (
+        <line
+          x1={grid.left}
+          y1={frameTop}
+          x2={grid.right}
+          y2={frameTop}
+          stroke="#1d2530"
+          strokeWidth="2"
+          opacity="0.74"
+        />
+      )}
+
       {Array.from({ length: data.maxHour + 1 }, (_, hour) => {
         const x = data.xForHour(hour);
         const isEdge = hour === 0 || hour === data.maxHour;
@@ -1424,7 +1473,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
           <g key={`hour-${hour}`}>
             <line
               x1={x}
-              y1={grid.top}
+              y1={frameTop}
               x2={x}
               y2={grid.bottom}
               stroke={isEdge ? "#1d2530" : "#b8c0cb"}
@@ -1482,7 +1531,7 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
         <line
           key={`guide-${line.hour}`}
           x1={line.x}
-          y1={grid.top}
+          y1={frameTop}
           x2={line.x}
           y2={grid.bottom}
           stroke="#1f2933"
@@ -1570,7 +1619,7 @@ function NoteLabels({ layouts, activeObservationId }) {
         />
         <circle cx={note.anchorX} cy={note.anchorY} r="3.2" fill="#ffffff" stroke={stroke} strokeWidth="1.25" opacity="0.9" />
         <rect x={note.x} y={note.y} width={note.width} height={note.height} rx="4" fill={fill} stroke={stroke} strokeWidth={isActive ? "2.1" : "0.9"} opacity="0.97" data-export-box="note" />
-        <text x={note.x + note.width / 2} y={note.y + 18} textAnchor="middle" fontSize="12.5" fontWeight="900" fill={ink} data-export-text="note">
+        <text x={note.x + note.width / 2} y={note.y + 22} textAnchor="middle" fontSize="15" fontWeight="900" fill={ink} data-export-text="note">
           {note.labelLines.map((line, index) => (
             <tspan key={`${line}-${index}`} x={note.x + note.width / 2} dy={index === 0 ? 0 : NOTE_LABEL_LINE_HEIGHT}>
               {line}
@@ -1584,6 +1633,7 @@ function NoteLabels({ layouts, activeObservationId }) {
 
 function OxytocinNoteHighlights({ highlights, grid }) {
   if (!highlights.length) return null;
+  const frameTop = grid.frameTop ?? grid.top;
 
   return (
     <g aria-label="Oxytocin periods inferred from observation notes">
@@ -1596,15 +1646,15 @@ function OxytocinNoteHighlights({ highlights, grid }) {
           <g key={`${highlight.startHour}-${highlight.endHour}-${index}`}>
             <rect
               x={x}
-              y={grid.top}
+              y={frameTop}
               width={width}
-              height={grid.bottom - grid.top}
+              height={grid.bottom - frameTop}
               fill="#f2c94c"
               opacity={highlight.ended ? "0.12" : "0.075"}
             />
             <line
               x1={highlight.x1}
-              y1={grid.top}
+              y1={frameTop}
               x2={highlight.x1}
               y2={grid.bottom}
               stroke="#c89200"
@@ -1615,7 +1665,7 @@ function OxytocinNoteHighlights({ highlights, grid }) {
             {highlight.ended && (
               <line
                 x1={highlight.x2}
-                y1={grid.top}
+                y1={frameTop}
                 x2={highlight.x2}
                 y2={grid.bottom}
                 stroke="#c89200"
@@ -1655,6 +1705,7 @@ function OxytocinNoteHighlights({ highlights, grid }) {
 
 function OxytocinBands({ bands, grid }) {
   if (!bands.length) return null;
+  const frameTop = grid.frameTop ?? grid.top;
 
   return (
     <g aria-label="Oxytocin infusion periods">
@@ -1662,9 +1713,9 @@ function OxytocinBands({ bands, grid }) {
         <rect
           key={`${band.startHour}-${band.endHour}-${index}`}
           x={band.x1}
-          y={grid.top}
+          y={frameTop}
           width={Math.max(2, band.x2 - band.x1)}
-          height={grid.bottom - grid.top}
+          height={grid.bottom - frameTop}
           fill="#f2c94c"
           opacity="0.16"
         />
@@ -1675,6 +1726,7 @@ function OxytocinBands({ bands, grid }) {
 
 function OxytocinTrack({ bands, changes, grid }) {
   if (!changes.length) return null;
+  const frameTop = grid.frameTop ?? grid.top;
 
   const trackY = grid.bottom - 16;
 
@@ -1699,7 +1751,7 @@ function OxytocinTrack({ bands, changes, grid }) {
 
         return (
           <g key={change.id}>
-            <line x1={change.x} y1={grid.top} x2={change.x} y2={grid.bottom} stroke="#c89200" strokeWidth="1.1" strokeDasharray="4 7" opacity="0.42" />
+            <line x1={change.x} y1={frameTop} x2={change.x} y2={grid.bottom} stroke="#c89200" strokeWidth="1.1" strokeDasharray="4 7" opacity="0.42" />
             <rect x={change.x - 4} y={trackY - 4} width="8" height="8" rx="1" fill={isStop ? "#ffffff" : "#c89200"} stroke="#8a6400" strokeWidth="1.2" />
             <text x={change.x + 5} y={trackY - 9 - (index % 3) * 11} fontSize="8.5" fontWeight="900" fill="#795600">
               {change.timeLabel} · {detail}
@@ -1716,18 +1768,22 @@ function OxytocinTrack({ bands, changes, grid }) {
 
 function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoints, avoidBoxes = [], activeAnnotationId }) {
   const style = { fill: "#fce7f3", stroke: "#db8fba" };
-  const boxWidth = 232;
-  const lineHeight = 16;
+  const boxWidth = 292;
+  const lineHeight = 18;
+  const labelTop = grid.labelTop ?? grid.frameTop ?? grid.top;
+  const renderedAnnotations = [...annotations]
+    .sort((first, second) => (first.hour ?? 0) - (second.hour ?? 0))
+    .slice(0, 12);
   const plottedPoints = [...dilationPoints, ...stationPoints];
   const plottedSegments = [dilationPoints, stationPoints].flatMap((points) =>
     points.slice(1).map((point, index) => [points[index], point])
   );
   const placedBoxes = [...avoidBoxes];
   const gridPadding = 10;
-  const pointInsideRect = (point, rect, padding = 18) =>
+  const pointInsideRect = (point, rect, padding = 30) =>
     point.x >= rect.x - padding && point.x <= rect.x + rect.width + padding &&
     point.y >= rect.y - padding && point.y <= rect.y + rect.height + padding;
-  const lineIntersectsRect = ([start, end], rect, padding = 18) => {
+  const lineIntersectsRect = ([start, end], rect, padding = 36) => {
     const left = rect.x - padding;
     const right = rect.x + rect.width + padding;
     const top = rect.y - padding;
@@ -1744,23 +1800,70 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
 
     return false;
   };
-  const boxesOverlap = (first, second, padding = 10) =>
+  const boxesOverlap = (first, second, padding = 24) =>
     first.x < second.x + second.width + padding &&
     first.x + first.width + padding > second.x &&
     first.y < second.y + second.height + padding &&
     first.y + first.height + padding > second.y;
+  const reserveRect = (rect, padding = 22) => ({
+    x: rect.x - padding,
+    y: rect.y - padding,
+    width: rect.width + padding * 2,
+    height: rect.height + padding * 2
+  });
+  const makeGridSlotCandidates = (height, orderStart = 100) => {
+    const xRatios = [0.12, 0.3, 0.48, 0.66, 0.84, 0.92];
+    const yRatios = [0.08, 0.28, 0.48, 0.68, 0.86];
 
-  return annotations.slice(0, 12).map((annotation) => {
+    return xRatios.flatMap((xRatio, xIndex) =>
+      yRatios.map((yRatio, yIndex) => ({
+        x: grid.left + (grid.right - grid.left) * xRatio - boxWidth / 2,
+        y: labelTop + (grid.bottom - labelTop - height) * yRatio,
+        order: orderStart + xIndex * yRatios.length + yIndex
+      }))
+    );
+  };
+  const shouldUseStackedAnnotations = renderedAnnotations.length >= 5 || avoidBoxes.length >= 10;
+  const makeStackedSlotCandidates = (height, annotationIndex) => {
+    const columnGap = 26;
+    const minX = grid.left + gridPadding;
+    const maxX = grid.right - boxWidth - gridPadding;
+    const generatedColumnXs = [];
+    for (let x = minX; x <= maxX; x += boxWidth + columnGap) {
+      generatedColumnXs.push(x);
+    }
+    if (!generatedColumnXs.includes(maxX)) generatedColumnXs.push(maxX);
+    const columnXs = generatedColumnXs.reverse();
+    const rowGap = 10;
+    const yStep = height + rowGap;
+    const candidates = [];
+
+    columnXs.forEach((x, columnIndex) => {
+      let rowIndex = 0;
+      for (let y = grid.bottom - height - gridPadding; y >= labelTop + gridPadding; y -= yStep) {
+        candidates.push({
+          x,
+          y,
+          order: 500 + columnIndex * 10000 + rowIndex * 120 + Math.abs(rowIndex - annotationIndex) * 8
+        });
+        rowIndex += 1;
+      }
+    });
+
+    return candidates;
+  };
+
+  return renderedAnnotations.map((annotation, annotationIndex) => {
     const isActive = activeAnnotationId && annotation.id === activeAnnotationId;
     const title = annotation.time;
-    const bodyLines = wrapText(annotation.text, 26);
-    const height = 39 + bodyLines.length * lineHeight + 14;
+    const bodyLines = wrapText(annotation.text, shouldUseStackedAnnotations ? 34 : 31);
+    const height = 44 + bodyLines.length * lineHeight + 16;
     const gapX = 28;
     const gapY = 24;
     const centeredX = annotation.x - boxWidth / 2;
     const rightX = annotation.x + gapX;
     const leftX = annotation.x - boxWidth - gapX;
-    const rawCandidates = [
+    const pointCandidates = [
       { x: rightX, y: annotation.anchorY - height - gapY, order: 0 },
       { x: leftX, y: annotation.anchorY - height - gapY, order: 1 },
       { x: rightX, y: annotation.anchorY + gapY, order: 2 },
@@ -1778,37 +1881,67 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
       ...[-250, 250, -340, 340].flatMap((offset, index) => [
         { x: centeredX + offset, y: annotation.anchorY - height - 118, order: 14 + index * 2 },
         { x: centeredX + offset, y: annotation.anchorY + 118, order: 15 + index * 2 }
-      ])
+      ]),
+      ...makeGridSlotCandidates(height)
     ];
-    const candidates = rawCandidates.map((candidate) => {
+    const buildCandidates = (rawCandidates, mode) => rawCandidates.map((candidate) => {
       const rect = {
         x: clamp(candidate.x, grid.left + gridPadding, grid.right - boxWidth - gridPadding),
-        y: clamp(candidate.y, grid.top + gridPadding, grid.bottom - height - gridPadding),
+        y: clamp(candidate.y, labelTop + gridPadding, grid.bottom - height - gridPadding),
         width: boxWidth,
         height
       };
       const pointCollisions = plottedPoints.filter((point) => pointInsideRect(point, rect)).length;
       const lineCollisions = plottedSegments.filter((segment) => lineIntersectsRect(segment, rect)).length;
       const boxCollisions = placedBoxes.filter((box) => boxesOverlap(rect, box)).length;
+      const directBoxCollisions = placedBoxes.filter((box) => boxesOverlap(rect, box, 0)).length;
       const centerX = rect.x + rect.width / 2;
       const centerY = rect.y + rect.height / 2;
       const distance = Math.hypot(centerX - annotation.x, centerY - annotation.anchorY);
+      const stackY = grid.bottom - height - gridPadding - annotationIndex * (height + 10);
+      const chronologicalPenalty = mode === "stack" ? Math.abs(rect.y - stackY) * 1200 : 0;
+      const columnPenalty = mode === "stack" ? candidate.order * 260 : candidate.order * 12;
       const edgePenalty = (
         (rect.x <= grid.left + gridPadding + 1 || rect.x + rect.width >= grid.right - gridPadding - 1) ? 80 : 0
       ) + (
-        (rect.y <= grid.top + gridPadding + 1 || rect.y + rect.height >= grid.bottom - gridPadding - 1) ? 50 : 0
+        (rect.y <= labelTop + gridPadding + 1 || rect.y + rect.height >= grid.bottom - gridPadding - 1) ? 50 : 0
       );
 
       return {
         ...rect,
-        score: pointCollisions * 70000 + lineCollisions * 4500 + boxCollisions * 320000 + edgePenalty + distance * 78 + candidate.order * 12
+        boxCollisions,
+        directBoxCollisions,
+        graphCollisions: pointCollisions + lineCollisions,
+        score: directBoxCollisions * 9000000 + boxCollisions * 1200000 + pointCollisions * 1200000 + lineCollisions * 900000 + chronologicalPenalty + edgePenalty + distance * (mode === "stack" ? 8 : 78) + columnPenalty
       };
     });
-    const nonOverlappingCandidates = candidates.filter((candidate) => candidate.boxCollisions === 0);
-    const placementPool = nonOverlappingCandidates.length ? nonOverlappingCandidates : candidates;
+    const pointPlacementCandidates = buildCandidates(pointCandidates, "point");
+    const clearPointCandidates = pointPlacementCandidates.filter((candidate) => candidate.directBoxCollisions === 0 && candidate.graphCollisions === 0);
+    const cleanPointCandidates = clearPointCandidates.filter((candidate) => candidate.boxCollisions === 0);
+    const stackCandidates = shouldUseStackedAnnotations && !cleanPointCandidates.length
+      ? buildCandidates(makeStackedSlotCandidates(height, annotationIndex), "stack")
+      : [];
+    const candidates = stackCandidates.length ? stackCandidates : pointPlacementCandidates;
+    const cleanCandidates = candidates.filter((candidate) => candidate.directBoxCollisions === 0 && candidate.graphCollisions === 0 && candidate.boxCollisions === 0);
+    const touchingCandidates = candidates.filter((candidate) => candidate.directBoxCollisions === 0 && candidate.graphCollisions === 0);
+    const graphBlockedCandidates = candidates.filter((candidate) => candidate.directBoxCollisions === 0);
+    const stackCleanCandidates = stackCandidates.filter((candidate) => candidate.directBoxCollisions === 0 && candidate.graphCollisions === 0 && candidate.boxCollisions === 0);
+    const stackTouchingCandidates = stackCandidates.filter((candidate) => candidate.directBoxCollisions === 0 && candidate.graphCollisions === 0);
+    const placementPool = [
+      cleanPointCandidates,
+      stackCleanCandidates,
+      cleanCandidates,
+      stackTouchingCandidates,
+      clearPointCandidates,
+      touchingCandidates,
+      graphBlockedCandidates,
+      candidates
+    ].find((pool) => pool.length);
     const placement = placementPool.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
-    placedBoxes.push(placement);
-    const connectorX = clamp(annotation.x, placement.x + 12, placement.x + boxWidth - 12);
+    const usedStackPlacement = stackCandidates.length > 0;
+    placedBoxes.push(reserveRect(placement, usedStackPlacement ? 8 : 22));
+    const activeBoxWidth = placement.width || boxWidth;
+    const connectorX = clamp(annotation.x, placement.x + 12, placement.x + activeBoxWidth - 12);
     const connectorY = annotation.anchorY < placement.y
       ? placement.y
       : annotation.anchorY > placement.y + height
@@ -1827,13 +1960,13 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
           opacity="0.72"
           markerEnd="url(#annotation-arrow)"
         />
-        <rect x={placement.x} y={placement.y} width={boxWidth} height={height} rx="4" fill={style.fill} stroke={style.stroke} strokeWidth={isActive ? "2.4" : "1.05"} opacity="0.93" data-export-box="annotation" />
-        <text x={placement.x + boxWidth / 2} y={placement.y + 21} textAnchor="middle" fontSize="12.5" fontWeight="900" fill="#28313d" data-export-text="annotation-title">
+        <rect x={placement.x} y={placement.y} width={activeBoxWidth} height={height} rx="4" fill={style.fill} stroke={style.stroke} strokeWidth={isActive ? "2.4" : "1.05"} opacity="0.93" data-export-box="annotation" />
+        <text x={placement.x + activeBoxWidth / 2} y={placement.y + 25} textAnchor="middle" fontSize="15" fontWeight="900" fill="#28313d" data-export-text="annotation-title">
           {title}
         </text>
-        <text x={placement.x + boxWidth / 2} y={placement.y + 42} textAnchor="middle" fontSize="12.5" fontWeight="800" fill="#3e4650" data-export-text="annotation-body">
+        <text x={placement.x + activeBoxWidth / 2} y={placement.y + 51} textAnchor="middle" fontSize="14.5" fontWeight="800" fill="#3e4650" data-export-text="annotation-body">
           {bodyLines.map((line, lineIndex) => (
-            <tspan key={`${line}-${lineIndex}`} x={placement.x + boxWidth / 2} dy={lineIndex === 0 ? 0 : lineHeight}>
+            <tspan key={`${line}-${lineIndex}`} x={placement.x + activeBoxWidth / 2} dy={lineIndex === 0 ? 0 : lineHeight}>
               {line}
             </tspan>
           ))}
@@ -2232,28 +2365,8 @@ function prepareSvgForPhotoExport(clone) {
     node.setAttribute("font-weight", "900");
   });
 
-  clone.querySelectorAll("[data-export-text='note']").forEach((node) => {
-    node.setAttribute("font-size", "15");
-    node.setAttribute("font-weight", "900");
-  });
-
   clone.querySelectorAll("[data-export-text='annotation-title']").forEach((node) => {
-    node.setAttribute("font-size", "15");
-    node.setAttribute("font-weight", "900");
     node.textContent = node.textContent.replace(/^[^·]+·\s*/, "");
-  });
-
-  clone.querySelectorAll("[data-export-text='annotation-body']").forEach((node) => {
-    node.setAttribute("font-size", "15");
-    node.setAttribute("font-weight", "800");
-  });
-
-  clone.querySelectorAll("[data-export-box='note']").forEach((node) => {
-    expandRect(node, 18, 10);
-  });
-
-  clone.querySelectorAll("[data-export-box='annotation']").forEach((node) => {
-    expandRect(node, 0, 16);
   });
 }
 

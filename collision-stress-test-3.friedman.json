@@ -1,0 +1,47 @@
+{
+  "type": "friedmans-curve-chart",
+  "version": 1,
+  "label": "Collision Stress Test 3 - Right Padding",
+  "exportedAt": "2026-07-27T00:00:00.000Z",
+  "state": {
+    "patient": {
+      "patientName": "Collision Stress Test 3",
+      "patientAge": "30",
+      "patientObScore": "G3P2",
+      "patientAog": "39 6/7 weeks",
+      "patientDate": "2026-07-27",
+      "startTime": "07:00",
+      "finalDiagnosis": "Tests dense late labels and annotation parking space after automatic right-hour padding.",
+      "residentName": "Test"
+    },
+    "observations": [
+      { "id": "t3-0700", "time": "07:00", "dayOffset": "0", "dilation": "2", "station": "-3", "guideLine": true, "note": "Admission; IE ruptured, clear" },
+      { "id": "t3-0730-note", "time": "07:30", "dayOffset": "0", "dilation": "", "station": "", "guideLine": true, "note": "O2 supplementation started" },
+      { "id": "t3-0800", "time": "08:00", "dayOffset": "0", "dilation": "3", "station": "-3", "guideLine": false, "note": "" },
+      { "id": "t3-0830-note", "time": "08:30", "dayOffset": "0", "dilation": "", "station": "", "guideLine": true, "note": "Given Hyoscine" },
+      { "id": "t3-0900-note", "time": "09:00", "dayOffset": "0", "dilation": "", "station": "", "guideLine": true, "note": "Given Ampicillin 2g IV" },
+      { "id": "t3-0930", "time": "09:30", "dayOffset": "0", "dilation": "4", "station": "-2", "guideLine": false, "note": "" },
+      { "id": "t3-1000-note", "time": "10:00", "dayOffset": "0", "dilation": "", "station": "", "guideLine": true, "note": "Given HNBB 1 amp" },
+      { "id": "t3-1030", "time": "10:30", "dayOffset": "0", "dilation": "5", "station": "-2", "guideLine": false, "note": "" },
+      { "id": "t3-1100-note", "time": "11:00", "dayOffset": "0", "dilation": "", "station": "", "guideLine": true, "note": "Given pethidine + promethazine" },
+      { "id": "t3-1115-note", "time": "11:15", "dayOffset": "0", "dilation": "", "station": "", "guideLine": true, "note": "STAT CS standby" },
+      { "id": "t3-1130", "time": "11:30", "dayOffset": "0", "dilation": "6", "station": "-1", "guideLine": false, "note": "" },
+      { "id": "t3-1145-note", "time": "11:45", "dayOffset": "0", "dilation": "", "station": "", "guideLine": true, "note": "STAT cesarean delivery called" },
+      { "id": "t3-1200", "time": "12:00", "dayOffset": "0", "dilation": "7", "station": "0", "guideLine": false, "note": "" },
+      { "id": "t3-1215-note", "time": "12:15", "dayOffset": "0", "dilation": "", "station": "", "guideLine": true, "note": "Given EPO 4 caps" },
+      { "id": "t3-1230", "time": "12:30", "dayOffset": "0", "dilation": "8", "station": "1", "guideLine": false, "note": "" },
+      { "id": "t3-1240-note", "time": "12:40", "dayOffset": "0", "dilation": "", "station": "", "guideLine": true, "note": "Mount" },
+      { "id": "t3-1250-note", "time": "12:50", "dayOffset": "0", "dilation": "", "station": "", "guideLine": true, "note": "Baby out" },
+      { "id": "t3-1300", "time": "13:00", "dayOffset": "0", "dilation": "10", "station": "4", "guideLine": true, "note": "Placenta out" }
+    ],
+    "annotations": [
+      { "id": "t3-ann-0800", "observationId": "t3-0800", "time": "08:00", "dayOffset": "0", "targetSeries": "dilation", "type": "clinical", "text": "FIGO normal: baseline FHT 140s, moderate variability, accelerations present, contractions every 5-6 mins." },
+      { "id": "t3-ann-0930", "observationId": "t3-0930", "time": "09:30", "dayOffset": "0", "targetSeries": "dilation", "type": "clinical", "text": "FIGO suspicious: recurrent variable decelerations with preserved variability; maternal repositioning done." },
+      { "id": "t3-ann-1030", "observationId": "t3-1030", "time": "10:30", "dayOffset": "0", "targetSeries": "dilation", "type": "clinical", "text": "Contractions every 3-4 mins, strong intensity, MVU 280. Continue close monitoring and maternal repositioning." },
+      { "id": "t3-ann-1130", "observationId": "t3-1130", "time": "11:30", "dayOffset": "0", "targetSeries": "dilation", "type": "clinical", "text": "Recurrent variable decelerations persisted despite O2 supplementation and position change." },
+      { "id": "t3-ann-1200", "observationId": "t3-1200", "time": "12:00", "dayOffset": "0", "targetSeries": "dilation", "type": "clinical", "text": "Prepare for expedited delivery; team informed and consent reviewed." },
+      { "id": "t3-ann-1230", "observationId": "t3-1230", "time": "12:30", "dayOffset": "0", "targetSeries": "dilation", "type": "clinical", "text": "Complete dilation with rapid descent. Continue continuous fetal monitoring." }
+    ],
+    "oxytocinEvents": []
+  }
+}
