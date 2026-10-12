@@ -3495,7 +3495,7 @@ export default function App() {
           ) : (
             <div className="export-menu" ref={exportMenuRef}>
               <button
-                className="export-button"
+                className="export-button compact-title-button"
                 type="button"
                 aria-expanded={showExportMenu}
                 aria-haspopup="menu"
@@ -3966,7 +3966,7 @@ export default function App() {
           </button>
         </nav>
       )}
-      <p className="app-credit">(c) chu im - batch adamantos</p>
+      <p className="app-credit">(c) chu im - batch adamantos uc school of medicine </p>
       {showChartViewer && (
         <div className="chart-viewer-backdrop" role="presentation" onMouseDown={() => setShowChartViewer(false)}>
           <section className="chart-viewer" role="dialog" aria-modal="true" aria-labelledby="chart-viewer-title" onMouseDown={(event) => event.stopPropagation()}>
