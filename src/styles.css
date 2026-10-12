@@ -133,6 +133,14 @@ textarea:focus-visible {
   gap: 7px;
 }
 
+.desktop-save-trigger {
+  display: none;
+}
+
+.desktop-header-actions {
+  display: none;
+}
+
 .compact-title-button {
   display: inline-flex;
   align-items: center;
@@ -2070,6 +2078,30 @@ td select {
 }
 
 @media (min-width: 1280px) {
+  .restore-menu {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .mobile-manage-trigger {
+    display: none;
+  }
+
+  .desktop-save-trigger {
+    display: inline-flex;
+  }
+
+  .desktop-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .manage-menu-actions button:nth-child(n + 2) {
+    display: none;
+  }
+
   .app-shell {
     max-width: 1920px;
   }

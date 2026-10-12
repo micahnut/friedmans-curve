@@ -3402,7 +3402,7 @@ export default function App() {
                 />
                 <div className="restore-menu" ref={restoreMenuRef}>
                   <button
-                    className="ghost-button compact-title-button"
+                    className="ghost-button compact-title-button mobile-manage-trigger"
                     type="button"
                     aria-expanded={showRestoreMenu}
                     aria-haspopup="menu"
@@ -3411,6 +3411,20 @@ export default function App() {
                     <Icon name="restore" />
                     Manage
                   </button>
+                  <button
+                    className="primary-button compact-title-button desktop-save-trigger"
+                    type="button"
+                    aria-expanded={showRestoreMenu}
+                    aria-haspopup="menu"
+                    onClick={() => setShowRestoreMenu((open) => !open)}
+                  >
+                    Save in browser
+                  </button>
+                  <div className="desktop-header-actions" aria-label="Chart actions">
+                    <button className="ghost-button compact-title-button" type="button" onClick={uploadChartFile}>Upload chart file</button>
+                    <button className="ghost-button compact-title-button" type="button" onClick={loadSample}>Load sample</button>
+                    <button className="ghost-button compact-title-button manage-danger-action" type="button" onClick={resetPatient}>Reset chart</button>
+                  </div>
                   {showRestoreMenu && (
                     <div className="restore-options" role="menu" aria-label="Manage chart data">
                       <div className="restore-menu-heading">
