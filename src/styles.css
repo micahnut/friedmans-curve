@@ -116,6 +116,8 @@ textarea:focus-visible {
   display: grid;
   gap: 3px;
   min-width: 0;
+  flex: 1 1 0%;
+  container: title-block / inline-size;
 }
 
 .title-top-row {
@@ -846,20 +848,21 @@ td select {
 .export-button {
   display: inline-flex;
   align-items: center;
-  min-height: 42px;
+  min-height: 36px;
   gap: 8px;
-  padding: 0 13px;
+  padding: 0 12px;
   border: 1px solid var(--ink);
-  border-radius: 8px;
+  border-radius: 7px;
   background: var(--ink);
   color: #fff;
+  font-size: 0.74rem;
   font-weight: 900;
   box-shadow: 0 8px 24px rgba(22, 27, 34, 0.12);
 }
 
 .export-button svg {
-  width: 19px;
-  height: 19px;
+  width: 14px;
+  height: 14px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -3237,5 +3240,46 @@ td select {
     min-width: 0 !important;
     aspect-ratio: auto !important;
     object-fit: contain;
+  }
+}
+
+/* Choose one chart-management control based on the header's real width, not the viewport. */
+@container title-block (max-width: 880px) {
+  .mobile-manage-trigger {
+    display: inline-flex !important;
+  }
+
+  .desktop-save-trigger,
+  .desktop-header-actions {
+    display: none !important;
+  }
+}
+
+@container title-block (min-width: 881px) {
+  .mobile-manage-trigger {
+    display: none !important;
+  }
+
+  .desktop-save-trigger {
+    display: inline-flex !important;
+  }
+
+  .desktop-header-actions {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .title-top-row {
+    justify-content: flex-start;
+  }
+
+  .title-utility-actions {
+    justify-content: flex-start;
+    margin-left: 12px;
+  }
+
+  .app-header > .header-actions {
+    align-self: flex-end;
   }
 }
