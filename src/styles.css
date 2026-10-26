@@ -83,6 +83,14 @@ textarea:focus-visible {
   max-width: 1920px;
   margin: 0 auto;
   padding: 22px;
+  --dilation-color: #0f63ce;
+  --station-color: #c62828;
+  --dilation-tint: rgba(15, 99, 206, 0.07);
+  --dilation-border: rgba(15, 99, 206, 0.28);
+  --dilation-metric-border: rgba(15, 99, 206, 0.26);
+  --station-tint: rgba(198, 40, 40, 0.07);
+  --station-border: rgba(198, 40, 40, 0.27);
+  --station-metric-border: rgba(198, 40, 40, 0.25);
 }
 
 .app-header {
@@ -466,12 +474,12 @@ input[type="checkbox"] {
   display: inline-block;
 }
 
-.swatch.blue {
-  background: var(--blue);
+.swatch.dilation {
+  background: var(--dilation-color);
 }
 
-.swatch.red {
-  background: var(--red);
+.swatch.station {
+  background: var(--station-color);
 }
 
 .swatch.amber {
@@ -526,13 +534,13 @@ input[type="checkbox"] {
 }
 
 .summary-tile.dilation {
-  border-color: rgba(15, 99, 206, 0.28);
-  background: rgba(15, 99, 206, 0.07);
+  border-color: var(--dilation-border);
+  background: var(--dilation-tint);
 }
 
 .summary-tile.station {
-  border-color: rgba(198, 40, 40, 0.27);
-  background: rgba(198, 40, 40, 0.07);
+  border-color: var(--station-border);
+  background: var(--station-tint);
 }
 
 .summary-tile strong {
@@ -546,12 +554,12 @@ input[type="checkbox"] {
 
 .summary-tile.dilation span,
 .summary-tile.dilation strong {
-  color: var(--blue);
+  color: var(--dilation-color);
 }
 
 .summary-tile.station span,
 .summary-tile.station strong {
-  color: var(--red);
+  color: var(--station-color);
 }
 
 .chart-scroller {
@@ -1568,23 +1576,23 @@ td select {
 }
 
 .observation-metric.dilation {
-  border-color: rgba(15, 99, 206, 0.26);
-  background: rgba(15, 99, 206, 0.07);
+  border-color: var(--dilation-metric-border);
+  background: var(--dilation-tint);
 }
 
 .observation-metric.station {
-  border-color: rgba(198, 40, 40, 0.25);
-  background: rgba(198, 40, 40, 0.07);
+  border-color: var(--station-metric-border);
+  background: var(--station-tint);
 }
 
 .observation-metric.dilation small,
 .observation-metric.dilation strong {
-  color: var(--blue);
+  color: var(--dilation-color);
 }
 
 .observation-metric.station small,
 .observation-metric.station strong {
-  color: var(--red);
+  color: var(--station-color);
 }
 
 .observation-metric strong,
@@ -2221,6 +2229,132 @@ td select {
 
   .annotation-list {
     grid-template-columns: 1fr;
+  }
+}
+
+.clinic-landing {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 28px;
+  background:
+    radial-gradient(ellipse at top left, rgba(15, 99, 206, 0.1), transparent 42%),
+    var(--bg);
+}
+
+.clinic-landing-card {
+  width: min(100%, 900px);
+  padding: clamp(24px, 5vw, 52px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.clinic-landing-card h1 {
+  margin: 8px 0;
+  font-size: clamp(2rem, 5vw, 3.3rem);
+  letter-spacing: -0.045em;
+}
+
+.clinic-landing-intro {
+  max-width: 620px;
+  margin: 0 0 28px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.clinic-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.clinic-choice-option {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px 14px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+
+.clinic-choice-option:hover {
+  border-color: #8ca7c7;
+  box-shadow: 0 10px 28px rgba(34, 41, 55, 0.1);
+}
+
+.clinic-choice-mark {
+  grid-row: span 3;
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: 16px;
+  background: #eef4fc;
+  color: #0f63ce;
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+
+.velez-choice .clinic-choice-mark {
+  background: #fff0f0;
+  color: #c62828;
+}
+
+.clinic-choice-name {
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.clinic-choice-detail {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.clinic-choice-action {
+  margin-top: 7px;
+  color: #0f63ce;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.velez-choice .clinic-choice-action {
+  color: #c62828;
+}
+
+.clinic-switch-button {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .clinic-landing {
+    padding: 16px;
+  }
+
+  .clinic-landing-card {
+    padding: 22px;
+    border-radius: 14px;
+  }
+
+  .clinic-choice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clinic-choice-option {
+    padding: 16px;
+  }
+
+  .clinic-switch-button {
+    font-size: 0.75rem;
+    padding-inline: 9px;
   }
 }
 
