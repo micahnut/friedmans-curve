@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 const STORAGE_KEY = "friedmans-curve-builder-v2";
 const SAVED_CHARTS_KEY = "friedmans-curve-saved-charts-v1";
+const VELEZ_STORAGE_KEY = "friedmans-curve-velez-v1";
+const VELEZ_SAVED_CHARTS_KEY = "friedmans-curve-velez-saved-charts-v1";
+const CLINIC_STORAGE_KEY = "friedmans-curve-clinic-v1";
 const MAX_SAVED_CHARTS = 5;
 const CHART_FILE_TYPE = "friedmans-curve-chart";
 const CHART_FILE_VERSION = 1;
@@ -216,9 +219,24 @@ function isLegacySampleState(state) {
   });
 }
 
-function loadState() {
+function clinicStorageKeys(clinic) {
+  return clinic === "velez"
+    ? { state: VELEZ_STORAGE_KEY, savedCharts: VELEZ_SAVED_CHARTS_KEY }
+    : { state: STORAGE_KEY, savedCharts: SAVED_CHARTS_KEY };
+}
+
+function loadClinicSelection() {
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const clinic = localStorage.getItem(CLINIC_STORAGE_KEY);
+    return clinic === "ucmed" || clinic === "velez" ? clinic : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadState(storageKey = STORAGE_KEY) {
+  try {
+    const stored = JSON.parse(localStorage.getItem(storageKey));
     const defaults = makeDefaultState();
 
     if (!stored || !stored.patient || !Array.isArray(stored.observations)) {
@@ -228,7 +246,7 @@ function loadState() {
     // Older builds persisted the bundled demo record. Treat that record as
     // uninitialized so a first visit opens with an empty chart.
     if (isLegacySampleState(stored)) {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(storageKey);
       return defaults;
     }
 
@@ -320,9 +338,9 @@ function chartFileName(chartState) {
   return `friedmans-curve-${safeName}-${date}.friedman.json`;
 }
 
-function loadSavedCharts() {
+function loadSavedCharts(storageKey = SAVED_CHARTS_KEY) {
   try {
-    const stored = JSON.parse(localStorage.getItem(SAVED_CHARTS_KEY));
+    const stored = JSON.parse(localStorage.getItem(storageKey));
 
     if (!Array.isArray(stored)) return [];
 
@@ -1295,7 +1313,9 @@ function formatDisplayDate(value) {
   });
 }
 
-function Chart({ patient, observations, annotations, oxytocinEvents, activeObservationId, activeAnnotationId, chartRef, chartId = "curveChart" }) {
+function Chart({ patient, observations, annotations, oxytocinEvents, activeObservationId, activeAnnotationId, chartRef, chartId = "curveChart", clinic = "ucmed" }) {
+  const dilationColor = "#0f63ce";
+  const stationColor = "#c62828";
   const data = useMemo(
     () => buildSvgData(patient, observations, annotations, oxytocinEvents),
     [patient, observations, annotations, oxytocinEvents]
@@ -1518,10 +1538,10 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
         );
       })}
 
-      <text x="42" y={gridCenterY} fontSize="20" fontWeight="900" fill="#0f63ce" textAnchor="middle" transform={`rotate(-90 42 ${gridCenterY})`} data-export-text="axis-title">
+      <text x="42" y={gridCenterY} fontSize="20" fontWeight="900" fill={dilationColor} textAnchor="middle" transform={`rotate(-90 42 ${gridCenterY})`} data-export-text="axis-title">
         CERVICAL DILATATION (CM)
       </text>
-      <text x={stationLabelX} y={gridCenterY} fontSize="20" fontWeight="900" fill="#c62828" textAnchor="middle" transform={`rotate(90 ${stationLabelX} ${gridCenterY})`} data-export-text="axis-title">
+      <text x={stationLabelX} y={gridCenterY} fontSize="20" fontWeight="900" fill={stationColor} textAnchor="middle" transform={`rotate(90 ${stationLabelX} ${gridCenterY})`} data-export-text="axis-title">
         STATION
       </text>
       <text x={(grid.left + grid.right) / 2} y={timeLabelY} textAnchor="middle" fontSize="20" fontWeight="900" fill="#111820" data-export-text="axis-title">
@@ -1542,19 +1562,21 @@ function Chart({ patient, observations, annotations, oxytocinEvents, activeObser
         />
       ))}
       {SHOW_OXYTOCIN_FEATURE && <OxytocinTrack bands={data.oxytocinBands} changes={data.oxytocinChanges} grid={grid} />}
-      <StartConnectors data={data} />
+      <StartConnectors data={data} dilationColor={dilationColor} stationColor={stationColor} />
       <Series
         points={data.dilationPoints.map((point) => ({ ...point, time: data.timeFromHour(point.hour) }))}
-        color="#0f63ce"
-        marker="circle"
+        color={dilationColor}
+        marker={clinic === "velez" ? "cross" : "circle"}
+        seriesLabel="Cervical dilation"
         activeObservationId={activeObservationId}
         onPointEnter={showPointDetails}
         onPointLeave={() => setHoveredPoint(null)}
       />
       <Series
         points={data.stationPoints.map((point) => ({ ...point, time: data.timeFromHour(point.hour) }))}
-        color="#c62828"
-        marker="cross"
+        color={stationColor}
+        marker={clinic === "velez" ? "circle" : "cross"}
+        seriesLabel="Fetal station"
         activeObservationId={activeObservationId}
         onPointEnter={showPointDetails}
         onPointLeave={() => setHoveredPoint(null)}
@@ -1976,7 +1998,7 @@ function ChartAnnotationLabels({ annotations, grid, dilationPoints, stationPoint
   });
 }
 
-function StartConnectors({ data }) {
+function StartConnectors({ data, dilationColor = "#0f63ce", stationColor = "#c62828" }) {
   const dilationStart = data.dilationPoints[0];
   const stationStart = data.stationPoints[0];
 
@@ -1988,7 +2010,7 @@ function StartConnectors({ data }) {
           y1={data.yForDilation(0)}
           x2={dilationStart.x}
           y2={dilationStart.y}
-          stroke="#0f63ce"
+          stroke={dilationColor}
           strokeWidth="1.5"
           strokeDasharray="4 7"
           strokeLinecap="round"
@@ -2001,7 +2023,7 @@ function StartConnectors({ data }) {
           y1={stationStart.y}
           x2={stationStart.x}
           y2={stationStart.y}
-          stroke="#c62828"
+          stroke={stationColor}
           strokeWidth="1.5"
           strokeDasharray="4 7"
           strokeLinecap="round"
@@ -2012,7 +2034,7 @@ function StartConnectors({ data }) {
   );
 }
 
-function Series({ points, color, marker, activeObservationId, onPointEnter, onPointLeave }) {
+function Series({ points, color, marker, seriesLabel, activeObservationId, onPointEnter, onPointLeave }) {
   return (
     <>
       {points.length >= 2 && (
@@ -2027,6 +2049,7 @@ function Series({ points, color, marker, activeObservationId, onPointEnter, onPo
       )}
       {points.map((point, index) => {
         const isActive = activeObservationId && point.observationId === activeObservationId;
+        const accessibleLabel = `${seriesLabel}: ${point.value}${seriesLabel === "Cervical dilation" ? " cm" : ""} at ${point.time}`;
 
         return marker === "circle" ? (
           <circle
@@ -2039,9 +2062,9 @@ function Series({ points, color, marker, activeObservationId, onPointEnter, onPo
             stroke={color}
             strokeWidth={isActive ? "6.4" : "4.6"}
             tabIndex="0"
-            aria-label={`Cervical dilation: ${point.value} cm at ${point.time}`}
-            onMouseEnter={() => onPointEnter(point, "Cervical dilation")}
-            onFocus={() => onPointEnter(point, "Cervical dilation")}
+            aria-label={accessibleLabel}
+            onMouseEnter={() => onPointEnter(point, seriesLabel)}
+            onFocus={() => onPointEnter(point, seriesLabel)}
             onMouseLeave={onPointLeave}
             onBlur={onPointLeave}
           />
@@ -2050,9 +2073,9 @@ function Series({ points, color, marker, activeObservationId, onPointEnter, onPo
             key={`${marker}-${index}`}
             className={`chart-point${isActive ? " active-chart-point" : ""}`}
             tabIndex="0"
-            aria-label={`Fetal station: ${point.value} at ${point.time}`}
-            onMouseEnter={() => onPointEnter(point, "Fetal station")}
-            onFocus={() => onPointEnter(point, "Fetal station")}
+            aria-label={accessibleLabel}
+            onMouseEnter={() => onPointEnter(point, seriesLabel)}
+            onFocus={() => onPointEnter(point, seriesLabel)}
             onMouseLeave={onPointLeave}
             onBlur={onPointLeave}
           >
@@ -2177,7 +2200,10 @@ function Icon({ name }) {
   );
 }
 
-function GuidePage() {
+function GuidePage({ clinic = "ucmed" }) {
+  const dilationColorName = "blue";
+  const stationColorName = "red";
+
   return (
     <main className="guide-page">
       <section className="panel guide-panel" aria-labelledby="guide-title">
@@ -2197,7 +2223,7 @@ function GuidePage() {
               <li>Final Diagnosis for the full chart footer</li>
               <li>Resident for the full chart signature line</li>
               <li>Long values wrap automatically on the chart.</li>
-              <li>The latest summary identifies the blue cervix value and red station value, so the chart no longer needs a separate legend.</li>
+              <li>The latest summary identifies the {dilationColorName} cervix value and {stationColorName} station value, so the chart no longer needs a separate legend.</li>
             </ul>
           </article>
 
@@ -2227,7 +2253,7 @@ function GuidePage() {
 
           <article>
             <h3>Records List</h3>
-            <p>Recorded observations appear as compact cards using the same blue for cervix and red for station as the chart.</p>
+            <p>Recorded observations appear as compact cards using the same {dilationColorName} for cervix and {stationColorName} for station as the chart.</p>
             <ul>
               <li>Edit opens the full observation form.</li>
               <li>The trash button deletes that observation.</li>
@@ -2240,8 +2266,8 @@ function GuidePage() {
             <h3>Timeline Notes</h3>
             <p>Short observation notes appear inside the graph as callouts with connector lines. Use these for concise labels such as admission, medication, mount, or baby out.</p>
             <ul>
-              <li>Notes with cervix connect to the blue plotted point.</li>
-              <li>Notes with station but no cervix connect to the red station point.</li>
+              <li>Notes with cervix connect to the {dilationColorName} plotted point.</li>
+              <li>Notes with station but no cervix connect to the {stationColorName} station point.</li>
               <li>Notes with no cervix or station stay at their real chart hour.</li>
               <li>A first note-only row anchors at the origin only when its time equals the chart Start Time.</li>
               <li>The layout looks for open chart space so callouts avoid the plotted lines as much as possible.</li>
@@ -2407,14 +2433,15 @@ function download(filename, content, type) {
 }
 
 export default function App() {
-  const [state, setState] = useState(loadState);
+  const [clinic, setClinic] = useState(loadClinicSelection);
+  const [state, setState] = useState(() => loadState(clinicStorageKeys(loadClinicSelection() || "ucmed").state));
   const [newObservation, setNewObservation] = useState(() => nextObservationDraft(state.observations, state.patient.startTime));
   const [newAnnotation, setNewAnnotation] = useState(() => createAnnotationDraft({ time: state.patient.startTime }));
   const [newOxytocinEvent, setNewOxytocinEvent] = useState(() => createOxytocinDraft({ time: state.patient.startTime }));
   const [showGuide, setShowGuide] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showRestoreMenu, setShowRestoreMenu] = useState(false);
-  const [savedCharts, setSavedCharts] = useState(loadSavedCharts);
+  const [savedCharts, setSavedCharts] = useState(() => loadSavedCharts(clinicStorageKeys(loadClinicSelection() || "ucmed").savedCharts));
   const [showMobileEntrySheet, setShowMobileEntrySheet] = useState(false);
   const [showMobileAnnotationSheet, setShowMobileAnnotationSheet] = useState(false);
   const [showChartViewer, setShowChartViewer] = useState(false);
@@ -2433,6 +2460,21 @@ export default function App() {
   const restoreMenuRef = useRef(null);
   const chartFileInputRef = useRef(null);
   const chartPinchRef = useRef({ distance: 0, zoom: 1 });
+  const chooseClinic = (nextClinic) => {
+    const keys = clinicStorageKeys(nextClinic);
+    const nextState = loadState(keys.state);
+    localStorage.setItem(CLINIC_STORAGE_KEY, nextClinic);
+    setState(nextState);
+    setSavedCharts(loadSavedCharts(keys.savedCharts));
+    setNewObservation(nextObservationDraft(nextState.observations, nextState.patient.startTime));
+    setNewAnnotation(createAnnotationDraft({ time: nextState.patient.startTime }));
+    setNewOxytocinEvent(createOxytocinDraft({ time: nextState.patient.startTime }));
+    setShowGuide(false);
+    setShowChartViewer(false);
+    setConfirmation(null);
+    setNotification(null);
+    setClinic(nextClinic);
+  };
   const observations = useMemo(
     () => sortedObservations(state.observations, state.patient.startTime),
     [state.observations, state.patient.startTime]
@@ -2545,12 +2587,14 @@ export default function App() {
   const confirmationIsDestructive = ["clear-observations", "clear-annotations", "delete-observation", "delete-annotation", "delete-saved-chart", "reset-patient"].includes(confirmationType);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    if (!clinic) return;
+    localStorage.setItem(clinicStorageKeys(clinic).state, JSON.stringify(state));
+  }, [clinic, state]);
 
   useEffect(() => {
-    localStorage.setItem(SAVED_CHARTS_KEY, JSON.stringify(savedCharts));
-  }, [savedCharts]);
+    if (!clinic) return;
+    localStorage.setItem(clinicStorageKeys(clinic).savedCharts, JSON.stringify(savedCharts));
+  }, [clinic, savedCharts]);
 
   useEffect(() => {
     if (!showExportMenu) return undefined;
@@ -3377,8 +3421,34 @@ export default function App() {
     </div>
   );
 
+  if (!clinic) {
+    return (
+      <main className="clinic-landing">
+        <section className="clinic-landing-card" aria-labelledby="clinic-choice-title">
+          <p className="eyebrow">Friedman&apos;s Curve Builder</p>
+          <h1 id="clinic-choice-title">Choose your hospital</h1>
+          <p className="clinic-landing-intro">Select the chart format you use. Your charts are kept separate by hospital.</p>
+          <div className="clinic-choice-grid">
+            <button className="clinic-choice-option ucmed-choice" type="button" onClick={() => chooseClinic("ucmed")}>
+              <span className="clinic-choice-mark" aria-hidden="true">U</span>
+              <span className="clinic-choice-name">UCMED</span>
+              <span className="clinic-choice-detail">Cervical dilatation in blue circles · Station in red X marks</span>
+              <span className="clinic-choice-action">Continue to UCMED chart</span>
+            </button>
+            <button className="clinic-choice-option velez-choice" type="button" onClick={() => chooseClinic("velez")}>
+              <span className="clinic-choice-mark" aria-hidden="true">V</span>
+              <span className="clinic-choice-name">Velez</span>
+              <span className="clinic-choice-detail">Cervical dilatation in blue X marks · Station in red circles</span>
+              <span className="clinic-choice-action">Continue to Velez chart</span>
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell${clinic === "velez" ? " clinic-velez" : " clinic-ucmed"}`}>
       <header className="app-header">
         <div className="app-title-block">
           <div className="title-top-row">
@@ -3488,6 +3558,7 @@ export default function App() {
           <h1>Friedman&apos;s Curve</h1>
         </div>
         <div className="header-actions" aria-label="Chart actions">
+          {!showGuide && <button className="ghost-button clinic-switch-button" type="button" onClick={() => setClinic(null)}>Change hospital</button>}
           {showGuide ? (
             <button className="ghost-button" type="button" onClick={() => setShowGuide(false)}>
               Back to chart
@@ -3530,7 +3601,7 @@ export default function App() {
       </header>
 
       {showGuide ? (
-        <GuidePage />
+        <GuidePage clinic={clinic} />
       ) : (
       <div className="desktop-layout">
         <nav className="desktop-rail" aria-label="Desktop section navigation">
@@ -3598,11 +3669,11 @@ export default function App() {
           <div className="chart-toolbar">
             <div className="legend" aria-label="Chart legend">
               <span>
-                <i className="swatch blue" />
+                <i className="swatch dilation" />
                 Cervical dilation
               </span>
               <span>
-                <i className="swatch red" />
+                <i className="swatch station" />
                 Station
               </span>
               {SHOW_OXYTOCIN_FEATURE && (
@@ -3636,7 +3707,7 @@ export default function App() {
               openChartViewer();
             }
           }}>
-            <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} activeObservationId={expandedObservationId} activeAnnotationId={editingAnnotationId} chartRef={chartRef} />
+            <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} activeObservationId={expandedObservationId} activeAnnotationId={editingAnnotationId} chartRef={chartRef} clinic={clinic} />
           </div>
         </section>
 
@@ -3991,7 +4062,7 @@ export default function App() {
               onTouchCancel={endChartPinch}
             >
               <div className="chart-viewer-canvas" style={{ width: `${Math.round(chartZoom * 100)}%` }}>
-                <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} activeObservationId={expandedObservationId} activeAnnotationId={editingAnnotationId} chartId="expandedCurveChart" />
+                <Chart patient={state.patient} observations={state.observations} annotations={annotations} oxytocinEvents={oxytocinEvents} activeObservationId={expandedObservationId} activeAnnotationId={editingAnnotationId} chartId="expandedCurveChart" clinic={clinic} />
               </div>
             </div>
           </section>
